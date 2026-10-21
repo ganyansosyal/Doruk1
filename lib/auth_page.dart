@@ -422,10 +422,11 @@ class _AuthPageState extends State<AuthPage> {
           ),
         ),
         child: SafeArea(
-          child: Center(
+          child: Align(
+            alignment: Alignment.topCenter,
             child: SingleChildScrollView(
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+              padding: EdgeInsets.fromLTRB(20, MediaQuery.sizeOf(context).height * 0.1, 20, 28),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 420),
                 child: Column(
@@ -496,17 +497,18 @@ class _AuthPageState extends State<AuthPage> {
                                 FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9_]')),
                                 LengthLimitingTextInputFormatter(handleMax),
                               ],
-                              below: _hint.isEmpty
-                                  ? null
-                                  : Padding(
+                              below: Padding(
                                       padding: const EdgeInsets.only(top: 6, left: 4),
-                                      child: Text(
+                                      child: SizedBox(
+                                        height: 16,
+                                        child: Text(
                                         _hint,
                                         style: jakarta(
                                           12,
                                           FontWeight.w600,
                                           _hintOk == true ? c.ac : (_hintOk == false ? c.red : c.mu),
                                         ),
+                                      ),
                                       ),
                                     ),
                             ),

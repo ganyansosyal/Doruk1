@@ -20,6 +20,12 @@ class GanyanApp extends StatelessWidget {
         title: 'GanyanSosyal',
         debugShowCheckedModeBanner: false,
         themeMode: mode,
+        scrollBehavior: const NoBounceScroll(),
+        builder: (ctx, child) => MediaQuery.withClampedTextScaling(
+          minScaleFactor: 1.0,
+          maxScaleFactor: 1.0,
+          child: child!,
+        ),
         theme: buildTheme(AppColors.light, Brightness.light),
         darkTheme: buildTheme(AppColors.dark, Brightness.dark),
         home: const SplashPage(),

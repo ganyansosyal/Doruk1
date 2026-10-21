@@ -48,10 +48,23 @@ class AppColors {
       Theme.of(context).brightness == Brightness.dark ? dark : light;
 }
 
+/// Kaydırma sonunda yaylanma / uzama efekti yok.
+class NoBounceScroll extends MaterialScrollBehavior {
+  const NoBounceScroll();
+  @override
+  Widget buildOverscrollIndicator(BuildContext context, Widget child, ScrollableDetails details) => child;
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) => const ClampingScrollPhysics();
+}
+
 ThemeData buildTheme(AppColors c, Brightness b) {
   final base = ThemeData(brightness: b, useMaterial3: true);
   return base.copyWith(
     scaffoldBackgroundColor: c.bg,
+    splashFactory: NoSplash.splashFactory,
+    splashColor: Colors.transparent,
+    highlightColor: Colors.transparent,
+    hoverColor: Colors.transparent,
     colorScheme: ColorScheme.fromSeed(seedColor: c.ac, brightness: b)
         .copyWith(primary: c.ac, surface: c.sf),
     textTheme: GoogleFonts.plusJakartaSansTextTheme(base.textTheme)
