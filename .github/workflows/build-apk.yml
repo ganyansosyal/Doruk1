@@ -34,6 +34,9 @@ jobs:
 
       - run: flutter pub get
 
+      - name: Uygulama simgesini üret
+        run: dart run flutter_launcher_icons
+
       - run: flutter build apk --release
 
       - uses: actions/upload-artifact@v4
