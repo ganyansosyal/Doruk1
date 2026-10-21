@@ -24,7 +24,7 @@ String cleanHandle(String s) {
 /* ---------------- Profil ---------------- */
 
 class Profile {
-  final String uid, name, handle, bio, photo, cover;
+  final String uid, name, handle, bio, photo, cover, bioColor;
   final bool isAdmin;
   Profile({
     required this.uid,
@@ -33,6 +33,7 @@ class Profile {
     this.bio = '',
     this.photo = '',
     this.cover = '',
+    this.bioColor = '',
     this.isAdmin = false,
   });
 
@@ -43,6 +44,7 @@ class Profile {
         bio: (m['bio'] ?? '').toString(),
         photo: (m['photo'] ?? '').toString(),
         cover: (m['cover'] ?? '').toString(),
+        bioColor: (m['bioColor'] ?? '').toString(),
         isAdmin: m['isAdmin'] == true,
       );
 
@@ -118,7 +120,6 @@ String _taken(String h) => '@$h kullanılmakta. Başka bir kullanıcı adı dene
 /* ---------------- Servis ---------------- */
 
 class AuthService {
-  /// Giriş/kayıt sürerken true: oturum açılsa bile profil işi bitmeden ana ekrana geçilmez.
   static final ValueNotifier<bool> busy = ValueNotifier<bool>(false);
 
   static FirebaseAuth get _auth => FirebaseAuth.instance;
@@ -142,7 +143,6 @@ class AuthService {
     return d.exists;
   }
 
-  /// Kullanıcı adı rezervasyonu + profil belgesi tek işlemde. Ad doluysa false döner.
   static Future<bool> _createProfile(String uid, String name, String handle, String email, String photo) {
     final hRef = _db.collection('handles').doc(handle);
     final uRef = _db.collection('users').doc(uid);
@@ -156,6 +156,7 @@ class AuthService {
         'bio': '',
         'photo': photo,
         'cover': '',
+        'bioColor': '',
         'following': <String>[],
         'createdAt': DateTime.now().millisecondsSinceEpoch,
       });
@@ -222,7 +223,6 @@ class AuthService {
     }
   }
 
-  /// Oturum açıkken profili yükler; yoksa (ör. ilk Google girişi) oluşturur.
   static Future<Profile> bootstrap(User u) async {
     final p = await loadProfile(u.uid) ?? await _ensureProfile(u);
     profileNotifier.value = p;
