@@ -11,7 +11,6 @@ import 'theme.dart';
 
 const handleMin = 3, handleMax = 20, nameMax = 30;
 
-/// Kullanıcı adını küçük harf, rakam ve _ ile sınırlar (Türkçe harfler çevrilir).
 String cleanHandle(String s) {
   const map = {'ç': 'c', 'ğ': 'g', 'ı': 'i', 'ö': 'o', 'ş': 's', 'ü': 'u'};
   final b = StringBuffer();
@@ -20,8 +19,6 @@ String cleanHandle(String s) {
   }
   return b.toString().replaceAll(RegExp(r'[^a-z0-9_]'), '');
 }
-
-/* ---------------- Profil ---------------- */
 
 class Profile {
   final String uid, name, handle, bio, photo, cover, bioColor;
@@ -91,8 +88,6 @@ class Avatar extends StatelessWidget {
   }
 }
 
-/* ---------------- Hata metinleri ---------------- */
-
 class AuthException implements Exception {
   final String message;
   const AuthException(this.message);
@@ -116,8 +111,6 @@ const _codes = {
 };
 
 String _taken(String h) => '@$h kullanılmakta. Başka bir kullanıcı adı dene.';
-
-/* ---------------- Servis ---------------- */
 
 class AuthService {
   static final ValueNotifier<bool> busy = ValueNotifier<bool>(false);
