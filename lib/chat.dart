@@ -4,8 +4,19 @@ import 'package:flutter/services.dart';
 
 import 'auth_service.dart';
 import 'feed.dart' show fmtStamp;
+import 'profile.dart' show ProfileRoute;
 import 'settle.dart';
 import 'theme.dart';
+
+final Map<String, Profile?> _pv = {};
+final Map<String, Future<Profile?>> _pf = {};
+Future<Profile?> _chatProfile(String uid) {
+  if (uid.isEmpty) return Future.value(null);
+  return _pf.putIfAbsent(uid, () => AuthService.loadProfile(uid).then((p) {
+        _pv[uid] = p;
+        return p;
+      }).catchError((_) => null));
+}
 
 void openChat(BuildContext context) {
   final c = AppColors.of(context);
@@ -34,6 +45,7 @@ class _ChatSheetState extends State<_ChatSheet> {
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _s = _db.collection('chat').orderBy('ts', descending: true).limit(150).snapshots();
   late final Stream<DocumentSnapshot<Map<String, dynamic>>> _lock = _db.collection('config').doc('chat').snapshots();
   String get _me => profileNotifier.value?.uid ?? '';
+  late final Widget _listW = _list();
 
   @override
   void dispose() {
@@ -124,15 +136,100 @@ class _ChatSheetState extends State<_ChatSheet> {
     );
   }
 
+  Widget _avatar(Map<String, dynamic> m) {
+    final uid = '${m['uid'] ?? ''}';
+    final nm = '${m['n'] ?? ''}';
+    return FutureBuilder<Profile?>(
+      future: _chatProfile(uid),
+      initialData: _pv[uid],
+      builder: (context, s) {
+        final pr = s.data ?? Profile(uid: uid, name: nm, handle: '');
+        return GestureDetector(
+          onTap: () {
+            if (uid.isNotEmpty) Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileRoute(uid: uid)));
+          },
+          child: Avatar(profile: pr, size: 32),
+        );
+      },
+    );
+  }
+
+  Widget _list() {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: _s,
+      builder: (context, snap) {
+        final c = AppColors.of(context);
+        if (snap.hasError) return Center(child: Text(AuthService.errorText(snap.error!), style: jakarta(14, FontWeight.w600, c.mu)));
+        if (!snap.hasData) return Center(child: CircularProgressIndicator(color: c.ac));
+        final docs = snap.data!.docs;
+        if (docs.isEmpty) return Center(child: Text('Henüz mesaj yok. İlk mesajı sen yaz!', style: jakarta(14, FontWeight.w600, c.mu)));
+        final maxW = MediaQuery.sizeOf(context).width * 0.70;
+        return ValueListenableBuilder<bool>(
+          valueListenable: isAdminNotifier,
+          builder: (context, admin, _) => ListView.builder(
+            reverse: true,
+            padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+            itemCount: docs.length,
+            itemBuilder: (_, i) {
+              final d = docs[i];
+              final m = d.data();
+              final mine = m['uid'] == _me;
+              final rp = m['r'] is Map ? Map<String, dynamic>.from(m['r'] as Map) : null;
+              // Liste ters: i-1 daha yeni, i+1 daha eski mesaj
+              final lastOfGroup = i == 0 || docs[i - 1].data()['uid'] != m['uid'];
+              final firstOfGroup = i == docs.length - 1 || docs[i + 1].data()['uid'] != m['uid'];
+              final bubble = GestureDetector(
+                onLongPress: () => _menu(d.id, m, admin),
+                child: Container(
+                  constraints: BoxConstraints(maxWidth: maxW),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(color: mine ? c.ac.withAlpha(40) : c.sf, borderRadius: BorderRadius.circular(16), border: Border.all(color: c.ln)),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    if (!mine && firstOfGroup) Text('${m['n'] ?? 'Kullanıcı'}', style: jakarta(12.5, FontWeight.w800, c.ac)),
+                    if (rp != null)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 4),
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(color: c.sf2, borderRadius: BorderRadius.circular(8)),
+                        child: Text('${rp['n'] ?? ''}: ${rp['t'] ?? ''}', maxLines: 2, overflow: TextOverflow.ellipsis, style: jakarta(12, FontWeight.w600, c.mu)),
+                      ),
+                    Text('${m['t'] ?? ''}', style: jakarta(14.5, FontWeight.w600, c.tx)),
+                    Text('${fmtStamp(((m['ts'] as num?) ?? 0).toInt())}${m['ed'] == true ? ' · düzenlendi' : ''}', style: jakarta(10.5, FontWeight.w500, c.mu)),
+                  ]),
+                ),
+              );
+              return Padding(
+                padding: EdgeInsets.only(top: firstOfGroup ? 6 : 0, bottom: 2),
+                child: mine
+                    ? Align(alignment: Alignment.centerRight, child: bubble)
+                    : Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                        SizedBox(width: 32, child: lastOfGroup ? _avatar(m) : null),
+                        const SizedBox(width: 6),
+                        Flexible(child: bubble),
+                      ]),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = AppColors.of(context);
     final mqx = MediaQuery.of(context);
+    final kbOpen = mqx.viewInsets.bottom > 0;
     // Klavye kapalıyken telefonun alt çubuğu kadar boşluk bırak (yazı alanı altında kalmasın)
-    final kb = mqx.viewInsets.bottom > 0 ? mqx.viewInsets.bottom : mqx.viewPadding.bottom;
+    final kb = kbOpen ? mqx.viewInsets.bottom : mqx.viewPadding.bottom;
+    // Dinamik yükseklik: klavye kapalıyken ekranın ~%62'si, açılınca kalan alanı doldurur
+    final screenH = mqx.size.height - mqx.viewPadding.top;
+    final h = (screenH * 0.62).clamp(0.0, screenH - kb);
     return Padding(
       padding: EdgeInsets.only(bottom: kb),
-      child: Column(children: [
+      child: SizedBox(
+        height: h,
+        child: Column(children: [
         const SizedBox(height: 12),
         Row(children: [
           const SizedBox(width: 16),
@@ -140,55 +237,7 @@ class _ChatSheetState extends State<_ChatSheet> {
           const Spacer(),
           IconButton(onPressed: () => Navigator.pop(context), icon: Icon(Icons.close, color: c.mu)),
         ]),
-        Expanded(
-          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: _s,
-            builder: (context, snap) {
-              if (snap.hasError) return Center(child: Text(AuthService.errorText(snap.error!), style: jakarta(14, FontWeight.w600, c.mu)));
-              if (!snap.hasData) return Center(child: CircularProgressIndicator(color: c.ac));
-              final docs = snap.data!.docs;
-              if (docs.isEmpty) return Center(child: Text('Henüz mesaj yok. İlk mesajı sen yaz!', style: jakarta(14, FontWeight.w600, c.mu)));
-              return ValueListenableBuilder<bool>(
-                valueListenable: isAdminNotifier,
-                builder: (context, admin, _) => ListView.builder(
-                  reverse: true,
-                  padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-                  itemCount: docs.length,
-                  itemBuilder: (_, i) {
-                    final d = docs[i];
-                    final m = d.data();
-                    final mine = m['uid'] == _me;
-                    final rp = m['r'] is Map ? Map<String, dynamic>.from(m['r'] as Map) : null;
-                    return GestureDetector(
-                      onLongPress: () => _menu(d.id, m, admin),
-                      child: Align(
-                        alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-                        child: Container(
-                          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
-                          margin: const EdgeInsets.symmetric(vertical: 4),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(color: mine ? c.ac.withAlpha(40) : c.sf, borderRadius: BorderRadius.circular(16), border: Border.all(color: c.ln)),
-                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            if (!mine) Text('${m['n'] ?? 'Kullanıcı'}', style: jakarta(12.5, FontWeight.w800, c.ac)),
-                            if (rp != null)
-                              Container(
-                                margin: const EdgeInsets.only(bottom: 4),
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(color: c.sf2, borderRadius: BorderRadius.circular(8)),
-                                child: Text('${rp['n'] ?? ''}: ${rp['t'] ?? ''}', maxLines: 2, overflow: TextOverflow.ellipsis, style: jakarta(12, FontWeight.w600, c.mu)),
-                              ),
-                            Text('${m['t'] ?? ''}', style: jakarta(14.5, FontWeight.w600, c.tx)),
-                            Text('${fmtStamp(((m['ts'] as num?) ?? 0).toInt())}${m['ed'] == true ? ' · düzenlendi' : ''}', style: jakarta(10.5, FontWeight.w500, c.mu)),
-                          ]),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              );
-            },
-          ),
-        ),
+        Expanded(child: _listW),
         if (_reply != null || _editId != null)
           Container(
             width: double.infinity,
@@ -228,6 +277,7 @@ class _ChatSheetState extends State<_ChatSheet> {
           },
         ),
       ]),
+      ),
     );
   }
 }
