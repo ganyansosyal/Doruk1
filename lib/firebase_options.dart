@@ -9,18 +9,18 @@ import 'package:firebase_core/firebase_core.dart';
 //   projectId         -> project_info.project_id
 //   storageBucket     -> project_info.storage_bucket
 const firebaseOptions = FirebaseOptions(
-  apiKey: 'BURAYA',
-  appId: 'BURAYA',
-  messagingSenderId: 'BURAYA',
-  projectId: 'BURAYA',
-  storageBucket: 'BURAYA',
+  apiKey: 'AIzaSyAY1EZw5Z4SIh0aEKVG6QrzQPhfsFhKKhA',
+  appId: '1:871686667838:web:1fe9b89ff588869fc69b6f',
+  messagingSenderId: '871686667838',
+  projectId: 'ganyansosyal',
+  storageBucket: 'ganyansosyal.firebasestorage.app',
 );
 
 bool firebaseReady = false;
 String firebaseProblem = '';
 
 Future<void> initFirebase() async {
-  if (firebaseOptions.apiKey == 'BURAYA') {
+  if (firebaseOptions.apiKey.isEmpty) {
     firebaseProblem = 'Firebase ayarları girilmemiş. lib/firebase_options.dart dosyasını doldur.';
     return;
   }
