@@ -142,7 +142,8 @@ bool _altiliBekler(Post p) {
 }
 
 bool _isWon(Post p) => postStatus(p) == 'win';
-bool _isLost(Post p) => postStatus(p) == 'lose' && !_altiliBekler(p);class _FeedPageState extends State<FeedPage> {
+bool _isLost(Post p) => postStatus(p) == 'lose' && !_altiliBekler(p);
+class _FeedPageState extends State<FeedPage> {
   String _filter = 'all';
   final _ctl = TextEditingController();
   bool _busy = false;
@@ -276,16 +277,16 @@ bool _isLost(Post p) => postStatus(p) == 'lose' && !_altiliBekler(p);class _Feed
               _composer(c),
               const SizedBox(height: 10),
               if (list.isEmpty)
-                Padding(padding: const EdgeInsets.all(20), child: Text(_filter == 'follow' ? 'Takip ettiğin kimsenin paylaşımı yok. Yukarıdan tahmincileri takip edebilirsin.' : _filter == 'mine' ? 'Henüz bir şey paylaşmadın. Paylaştığın kuponlar, tutmasa bile burada durur.' : _filter == 'lost' ? 'Bugün kaybeden kupon yok.' : _filter == 'winners' ? 'Bugün tutan kupon yok.' : _filter == 'tracked' ? 'Takip ettiğin kupon yok. Bir kuponun altındaki "Kuponu takip et" düğmesine bas.' : 'Henüz paylaşım yok. İlk kuponunu sen paylaş!', textAlign: TextAlign.center, style: jakarta(13, FontWeight.w600, c.mu))),
+                Padding(padding: const EdgeInsets.all(20), child: Text(_filter == 'follow' ? 'Takip ettiğin kimsenin paylaşımı yok.' : _filter == 'mine' ? 'Henüz bir şey paylaşmadın.' : _filter == 'lost' ? 'Bugün kaybeden kupon yok.' : _filter == 'winners' ? 'Bugün tutan kupon yok.' : _filter == 'tracked' ? 'Takip ettiğin kupon yok.' : 'Henüz paylaşım yok.', textAlign: TextAlign.center, style: jakarta(13, FontWeight.w600, c.mu))),
             ];
             return ListView.builder(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 20),
-              cacheExtent: 600,
+              cacheExtent: 300, // Kasmayı önleyen ayar
               itemCount: head.length + list.length,
               itemBuilder: (context, i) {
                 if (i < head.length) return head[i];
                 final p = list[i - head.length];
-                return RepaintBoundary(
+                return RepaintBoundary( // Her kartı kendi katmanına alır
                   key: ValueKey(p.id),
                   child: PostCard(key: ValueKey(p.id), post: p, following: following.contains(p.uid), tracked: tracked.contains(p.id), isMod: _mods.contains(p.uid)),
                 );
