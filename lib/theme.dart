@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 final ValueNotifier<ThemeMode> themeMode = ValueNotifier(ThemeMode.light);
@@ -49,12 +50,24 @@ class AppColors {
 }
 
 /// Kaydırma sonunda yaylanma / uzama efekti yok.
+/// Performans ölçümü: logoya uzun basınca açılır/kapanır (ekrandaki çubuklar kare süresini gösterir)
+final ValueNotifier<bool> perfOverlay = ValueNotifier<bool>(false);
+
+/// Parmak bırakınca kayma daha uzun sürsün (tarayıcıdaki ataletli kaydırma gibi)
+class GlideScrollPhysics extends ClampingScrollPhysics {
+  const GlideScrollPhysics({super.parent});
+  @override
+  GlideScrollPhysics applyTo(ScrollPhysics? ancestor) => GlideScrollPhysics(parent: buildParent(ancestor));
+  @override
+  Simulation? createBallisticSimulation(ScrollMetrics position, double velocity) => super.createBallisticSimulation(position, velocity * 1.5);
+}
+
 class NoBounceScroll extends MaterialScrollBehavior {
   const NoBounceScroll();
   @override
   Widget buildOverscrollIndicator(BuildContext context, Widget child, ScrollableDetails details) => child;
   @override
-  ScrollPhysics getScrollPhysics(BuildContext context) => const ClampingScrollPhysics();
+  ScrollPhysics getScrollPhysics(BuildContext context) => const GlideScrollPhysics();
 }
 
 ThemeData buildTheme(AppColors c, Brightness b) {

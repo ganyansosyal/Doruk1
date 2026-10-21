@@ -186,7 +186,7 @@ class TopBar extends StatelessWidget {
         children: [
           IconBox(icon: Icons.menu, onTap: onMenu),
           const SizedBox(width: 10),
-          const Brand(size: 19),
+          GestureDetector(onLongPress: () => perfOverlay.value = !perfOverlay.value, child: const Brand(size: 19)),
           const SizedBox(width: 10),
           Expanded(
             child: GestureDetector(

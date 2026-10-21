@@ -1,4 +1,7 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
+import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:flutter/services.dart';
 import 'firebase_options.dart';
 import 'theme.dart';
@@ -12,12 +15,20 @@ const _barStyle = SystemUiOverlayStyle(
   systemNavigationBarColor: _barGreen,
   systemNavigationBarIconBrightness: Brightness.light,
   systemNavigationBarDividerColor: _barGreen,
+  statusBarContrastEnforced: false,
+  systemNavigationBarContrastEnforced: false,
 );
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await preloadFonts();
   SystemChrome.setSystemUIOverlayStyle(_barStyle);
+  // Telefon 90/120 Hz destekliyorsa uygulamayı da en yüksek yenileme hızında çalıştır (tarayıcı gibi akıcı olsun)
+  if (Platform.isAndroid) {
+    try {
+      await FlutterDisplayMode.setHighRefreshRate();
+    } catch (_) {}
+  }
   await initFirebase();
   runApp(const GanyanApp());
 }
@@ -29,9 +40,12 @@ class GanyanApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: themeMode,
-      builder: (_, mode, __) => MaterialApp(
+      builder: (_, mode, __) => ValueListenableBuilder<bool>(
+       valueListenable: perfOverlay,
+       builder: (_, perf, __) => MaterialApp(
         title: 'GanyanSosyal',
         debugShowCheckedModeBanner: false,
+        showPerformanceOverlay: perf,
         themeMode: mode,
         scrollBehavior: const NoBounceScroll(),
         // Ekran küçültme (FittedBox) kaldırıldı: her kare ayrıca ölçeklenmesin, kaydırma akıcı olsun.
@@ -55,6 +69,7 @@ class GanyanApp extends StatelessWidget {
         theme: buildTheme(AppColors.light, Brightness.light),
         darkTheme: buildTheme(AppColors.dark, Brightness.dark),
         home: const SplashPage(),
+      ),
       ),
     );
   }

@@ -110,7 +110,7 @@ class _LeadersPageState extends State<LeadersPage> {
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
       cacheExtent: 600,
       itemCount: head.length + top.length,
-      itemBuilder: (context, i) => i < head.length ? head[i] : _row(c, i - head.length, top[i - head.length], me),
+      itemBuilder: (context, i) => i < head.length ? head[i] : RepaintBoundary(child: _row(c, i - head.length, top[i - head.length], me)),
     );
   }
 

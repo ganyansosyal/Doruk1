@@ -191,10 +191,13 @@ class _ResultsPageState extends State<ResultsPage> {
         ]),
       );
 
-  Widget _box(AppColors c, List<Color> k, String a, String b, List<Widget> rows) => Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        decoration: BoxDecoration(color: c.sf, borderRadius: BorderRadius.circular(14), border: Border.all(color: c.ln)),
-        child: Column(children: [_head(k, a, b), ...rows]),
+  // RepaintBoundary: sitedeki 'contain: paint' gibi, her kutu kendi katmanında çizilir
+  Widget _box(AppColors c, List<Color> k, String a, String b, List<Widget> rows) => RepaintBoundary(
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          decoration: BoxDecoration(color: c.sf, borderRadius: BorderRadius.circular(14), border: Border.all(color: c.ln)),
+          child: Column(children: [_head(k, a, b), ...rows]),
+        ),
       );
 
   Widget _card(AppColors c, String city, ({int ord, int n, int st}) cd) {
