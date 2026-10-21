@@ -1,0 +1,134 @@
+import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+
+import 'auth_service.dart';
+import 'feed.dart';
+import 'profile.dart';
+import 'scoring.dart';
+import 'theme.dart';
+
+class LeadersPage extends StatefulWidget {
+  const LeadersPage({super.key});
+  @override
+  State<LeadersPage> createState() => _LeadersPageState();
+}
+
+class _LeadersPageState extends State<LeadersPage> {
+  final _subs = <StreamSubscription>[];
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _users = [];
+  Map<String, double> _bonus = {};
+  List<Post> _posts = [];
+  bool _ready = false;
+  String? _err;
+
+  @override
+  void initState() {
+    super.initState();
+    final db = FirebaseFirestore.instance;
+    void err(Object e) => setState(() => _err = AuthService.errorText(e));
+    _subs.add(db.collection('users').limit(300).snapshots().listen((s) => setState(() {
+          _users = s.docs;
+          _ready = true;
+        }), onError: err));
+    _subs.add(db.collection('grants').limit(500).snapshots().listen((s) => setState(() {
+          _bonus = {
+            for (final d in s.docs) d.id: ((d.data()['pts'] as num?)?.toDouble() ?? 0) + ((d.data()['keep'] as num?)?.toDouble() ?? 0)
+          };
+        }), onError: (_) {}));
+    _subs.add(db.collection('posts').orderBy('ts', descending: true).limit(100).snapshots().listen(
+        (s) => setState(() => _posts = s.docs.map((d) => Post(d.id, d.data())).toList()),
+        onError: (_) {}));
+  }
+
+  @override
+  void dispose() {
+    for (final s in _subs) {
+      s.cancel();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppColors.of(context);
+    if (_err != null) return Center(child: Text(_err!, style: jakarta(14, FontWeight.w600, c.mu)));
+    if (!_ready) return Center(child: CircularProgressIndicator(color: c.ac));
+    final me = profileNotifier.value?.uid ?? '';
+    final meDoc = _users.where((d) => d.id == me).toList();
+    final admin = meDoc.isNotEmpty && meDoc.first.data()['isAdmin'] == true;
+    final rows = _users
+        .map((d) => (d: d, s: scoreOf(d.id, _posts, d.data()['hist'] as Map?, _bonus[d.id] ?? 0)))
+        .where((x) => admin || x.s.pts > 0)
+        .toList()
+      ..sort((a, b) {
+        final k = b.s.pts.compareTo(a.s.pts);
+        if (k != 0) return k;
+        final r = b.s.pct.compareTo(a.s.pct);
+        if (r != 0) return r;
+        return (a.d.data()['name'] ?? '').toString().compareTo((b.d.data()['name'] ?? '').toString());
+      });
+    final top = rows.take(admin ? 100 : 50).toList();
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+      children: [
+        Text('Puan sıralaması', style: jakarta(22, FontWeight.w800, c.tx)),
+        const SizedBox(height: 4),
+        Text('Puana göre sıralanır. Puan eşitse isabet oranı yüksek olan öne geçer.',
+            style: jakarta(13.5, FontWeight.w500, c.mu)),
+        const SizedBox(height: 14),
+        if (top.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 48),
+            child: Column(children: [
+              const Text('🏆', style: TextStyle(fontSize: 44)),
+              const SizedBox(height: 10),
+              Text('Henüz puan alan yok', style: jakarta(18, FontWeight.w800, c.tx)),
+              const SizedBox(height: 6),
+              Text('Kuponunu tutturan ilk kişi burada görünecek.', style: jakarta(14, FontWeight.w500, c.mu)),
+            ]),
+          ),
+        for (var i = 0; i < top.length; i++) _row(c, i, top[i], me),
+      ],
+    );
+  }
+
+  Widget _row(AppColors c, int i, ({QueryDocumentSnapshot<Map<String, dynamic>> d, Score s}) x, String me) {
+    final u = Profile.fromMap(x.d.id, x.d.data());
+    final isMe = x.d.id == me;
+    final medal = i == 0 ? '🥇' : i == 1 ? '🥈' : i == 2 ? '🥉' : '${i + 1}';
+    return GestureDetector(
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileRoute(uid: x.d.id))),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isMe ? c.ac.withAlpha(24) : c.sf,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: isMe ? c.ac : c.ln),
+        ),
+        child: Row(children: [
+          SizedBox(
+            width: 34,
+            child: Text(x.s.pts > 0 ? medal : '–', textAlign: TextAlign.center, style: jakarta(i < 3 ? 22 : 16, FontWeight.w800, c.mu)),
+          ),
+          const SizedBox(width: 6),
+          Avatar(profile: u, size: 52),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(u.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(16, FontWeight.w800, c.tx)),
+              Text('@${u.handle}${x.s.tot > 0 ? ' · %${x.s.pct} isabet' : ''}',
+                  maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(13, FontWeight.w600, c.mu)),
+            ]),
+          ),
+          Column(children: [
+            Text(fmtPts(x.s.pts), style: jakarta(22, FontWeight.w800, c.ac)),
+            Text('puan', style: jakarta(12, FontWeight.w600, c.mu)),
+          ]),
+        ]),
+      ),
+    );
+  }
+}

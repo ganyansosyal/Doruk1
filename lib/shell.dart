@@ -1,5 +1,14 @@
 import 'package:flutter/material.dart';
 import 'auth_service.dart';
+import 'feed.dart';
+import 'leaders.dart';
+import 'notifs.dart';
+import 'profile.dart';
+import 'chat.dart';
+import 'extras.dart';
+import 'predict.dart';
+import 'results.dart';
+import 'settle.dart';
 import 'theme.dart';
 
 class Shell extends StatefulWidget {
@@ -14,6 +23,19 @@ class _ShellState extends State<Shell> {
   int _tab = 0;
 
   static const _titles = ['Akış', 'Liderler', 'Tahmin Yap', 'Sonuçlar', 'Profilim'];
+
+  @override
+  void initState() {
+    super.initState();
+    final u = profileNotifier.value?.uid ?? '';
+    if (u.isNotEmpty) Settler.start(u);
+  }
+
+  @override
+  void dispose() {
+    Settler.stop();
+    super.dispose();
+  }
 
   void _toast(String t) {
     ScaffoldMessenger.of(context)
@@ -34,11 +56,23 @@ class _ShellState extends State<Shell> {
             bottom: false,
             child: Column(
               children: [
-                TopBar(onMenu: () => _key.currentState?.openDrawer()),
+                TopBar(
+                  onMenu: () => _key.currentState?.openDrawer(),
+                  onSearch: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchPage())),
+                  onBell: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsPage())),
+                ),
                 Expanded(
                   child: Padding(
                     padding: EdgeInsets.only(bottom: 70 + bottom),
-                    child: PlaceholderPage(title: _titles[_tab]),
+                    child: _tab == 0
+                        ? const FeedPage()
+                        : _tab == 1
+                            ? const LeadersPage()
+                            : _tab == 4
+                                ? ProfileView(uid: profileNotifier.value?.uid ?? '')
+                                : _tab == 2
+                                    ? PredictPage(onShared: () => setState(() => _tab = 0))
+                                    : const ResultsPage(),
                   ),
                 ),
               ],
@@ -81,7 +115,7 @@ class _ShellState extends State<Shell> {
             bottom: bottom + 18,
             child: Center(
               child: GestureDetector(
-                onTap: () => _toast('Sohbet sonraki aşamada'),
+                onTap: () => openChat(context),
                 child: Container(
                   width: 76,
                   height: 76,
@@ -115,8 +149,8 @@ class _ShellState extends State<Shell> {
 }
 
 class TopBar extends StatelessWidget {
-  final VoidCallback onMenu;
-  const TopBar({super.key, required this.onMenu});
+  final VoidCallback onMenu, onSearch, onBell;
+  const TopBar({super.key, required this.onMenu, required this.onSearch, required this.onBell});
 
   @override
   Widget build(BuildContext context) {
@@ -135,7 +169,9 @@ class TopBar extends StatelessWidget {
           const Brand(size: 19),
           const SizedBox(width: 10),
           Expanded(
-            child: Container(
+            child: GestureDetector(
+              onTap: onSearch,
+              child: Container(
               height: 40,
               padding: const EdgeInsets.symmetric(horizontal: 10),
               decoration: BoxDecoration(
@@ -156,6 +192,7 @@ class TopBar extends StatelessWidget {
                 ],
               ),
             ),
+            ),
           ),
           const SizedBox(width: 8),
           IconBox(
@@ -163,7 +200,7 @@ class TopBar extends StatelessWidget {
             onTap: () => themeMode.value = isDark ? ThemeMode.light : ThemeMode.dark,
           ),
           const SizedBox(width: 8),
-          IconBox(icon: Icons.notifications_none, onTap: () {}),
+          IconBox(icon: Icons.notifications_none, onTap: onBell),
         ],
       ),
     );
@@ -304,7 +341,13 @@ class AppDrawer extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 18),
-              Container(
+              GestureDetector(
+                onTap: () {
+                  final u = profileNotifier.value?.uid;
+                  Navigator.of(context).pop();
+                  if (u != null) Navigator.of(context).push(MaterialPageRoute(builder: (_) => ProfileRoute(uid: u)));
+                },
+                child: Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(22),
@@ -327,6 +370,7 @@ class AppDrawer extends StatelessWidget {
                   ],
                 ),
               ),
+              ),
               const SizedBox(height: 14),
               Container(
                 decoration: BoxDecoration(
@@ -336,9 +380,15 @@ class AppDrawer extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    _DrawerRow(icon: Icons.diamond_outlined, label: 'Mağaza', onTap: () {}),
+                    _DrawerRow(icon: Icons.diamond_outlined, label: 'Mağaza', onTap: () {
+                      Navigator.of(context).pop();
+                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ShopPage()));
+                    }),
                     Divider(height: 1, color: c.ln),
-                    _DrawerRow(icon: Icons.menu_book_outlined, label: 'Kurallar', onTap: () {}),
+                    _DrawerRow(icon: Icons.menu_book_outlined, label: 'Kurallar', onTap: () {
+                      Navigator.of(context).pop();
+                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RulesPage()));
+                    }),
                     Divider(height: 1, color: c.ln),
                     _DrawerRow(
                       icon: Icons.wb_sunny_outlined,
@@ -350,8 +400,13 @@ class AppDrawer extends StatelessWidget {
                         onChanged: (v) => themeMode.value = v ? ThemeMode.dark : ThemeMode.light,
                       ),
                     ),
-                    Divider(height: 1, color: c.ln),
-                    _DrawerRow(icon: Icons.lock_outline, label: 'Yönetim paneli', onTap: () {}),
+                    if (isAdminNotifier.value) ...[
+                      Divider(height: 1, color: c.ln),
+                      _DrawerRow(icon: Icons.lock_outline, label: 'Yönetim paneli', onTap: () {
+                        Navigator.of(context).pop();
+                        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminPage()));
+                      }),
+                    ],
                   ],
                 ),
               ),
