@@ -27,6 +27,9 @@ Future<void> showRaceFilm(
   String? title,
   String? subtitle,
   String? badge,
+  String? meName,
+  String? meSub,
+  Future<List<FilmRow>> Function()? loader,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -34,7 +37,7 @@ Future<void> showRaceFilm(
     useSafeArea: true,
     backgroundColor: _bg,
     shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
-    builder: (_) => _FilmSheet(url: url, race: race, city: city, dateLabel: dateLabel, rows: rows, title: title, subtitle: subtitle, badge: badge),
+    builder: (_) => _FilmSheet(url: url, race: race, city: city, dateLabel: dateLabel, rows: rows, title: title, subtitle: subtitle, badge: badge, meName: meName, meSub: meSub, loader: loader),
   );
 }
 
@@ -42,8 +45,9 @@ class _FilmSheet extends StatefulWidget {
   final String url, city, dateLabel;
   final int race;
   final List<FilmRow> rows;
-  final String? title, subtitle, badge;
-  const _FilmSheet({required this.url, required this.race, required this.city, required this.dateLabel, required this.rows, this.title, this.subtitle, this.badge});
+  final String? title, subtitle, badge, meName, meSub;
+  final Future<List<FilmRow>> Function()? loader;
+  const _FilmSheet({required this.url, required this.race, required this.city, required this.dateLabel, required this.rows, this.title, this.subtitle, this.badge, this.meName, this.meSub, this.loader});
   @override
   State<_FilmSheet> createState() => _FilmSheetState();
 }
@@ -52,10 +56,43 @@ class _FilmSheetState extends State<_FilmSheet> {
   late final VideoPlayerController _v = VideoPlayerController.networkUrl(Uri.parse(widget.url));
   double _speed = 1;
   bool _err = false;
+  List<FilmRow> _rows = const [];
+  bool _ld = false, _fail = false;
+
+  static String _nk(String x) => x.toUpperCase().replaceAll('İ', 'I').replaceAll('Ğ', 'G').replaceAll('Ü', 'U').replaceAll('Ş', 'S').replaceAll('Ö', 'O').replaceAll('Ç', 'C').replaceAll(RegExp(r'[^A-Z0-9]'), '');
+
+  // Koşu sonucunu arka planda yükler; takılırsa kendiliğinden 2 kez daha dener
+  Future<void> _load() async {
+    setState(() {
+      _ld = true;
+      _fail = false;
+    });
+    for (var t = 0; t < 3; t++) {
+      try {
+        final l = await widget.loader!();
+        if (!mounted) return;
+        if (l.isEmpty) throw 'bos';
+        setState(() {
+          _rows = l;
+          _ld = false;
+        });
+        return;
+      } catch (_) {
+        if (t < 2) await Future.delayed(Duration(milliseconds: t == 0 ? 1500 : 4000));
+        if (!mounted) return;
+      }
+    }
+    setState(() {
+      _ld = false;
+      _fail = true;
+    });
+  }
 
   @override
   void initState() {
     super.initState();
+    _rows = widget.rows;
+    if (widget.loader != null && _rows.isEmpty) _load();
     _v.initialize().then((_) {
       if (!mounted) return;
       setState(() {});
@@ -139,12 +176,26 @@ class _FilmSheetState extends State<_FilmSheet> {
             ),
           ),
           if (_v.value.isInitialized) VideoProgressIndicator(_v, allowScrubbing: true, colors: const VideoProgressColors(playedColor: _ac)),
-          if (widget.rows.isNotEmpty) ...[
+          if (widget.meName != null) _me(),
+          if (_ld)
+            Padding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 8), child: Text('Koşu sonucu yükleniyor…', style: jakarta(14, FontWeight.w700, Colors.white60))),
+          if (_fail)
+            GestureDetector(
+              onTap: _load,
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(14)),
+                child: Text('Koşu sonucu alınamadı · Tekrar dene', style: jakarta(13.5, FontWeight.w800, Colors.white70)),
+              ),
+            ),
+          if (_rows.isNotEmpty) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: Text('Koşu sonucu', style: jakarta(14, FontWeight.w700, Colors.white60)),
             ),
-            for (var i = 0; i < widget.rows.length && i < 4; i++) _row(i, widget.rows[i]),
+            for (var i = 0; i < _rows.length && i < 4; i++) _row(i, _rows[i]),
           ],
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -194,6 +245,27 @@ class _FilmSheetState extends State<_FilmSheet> {
         ),
       );
 
+  Widget _me() {
+    int? no;
+    for (final r in _rows) {
+      if (_nk(r.name) == _nk(widget.meName!)) no = r.no;
+    }
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(color: const Color(0xFF241A45), borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFF5B3FB8))),
+      child: Row(children: [
+        if (no != null) ...[NoBadge(no, size: 36), const SizedBox(width: 10)],
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(widget.meName!, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(15, FontWeight.w800, Colors.white)),
+            if ((widget.meSub ?? '').isNotEmpty) Text(widget.meSub!, style: jakarta(12.5, FontWeight.w700, const Color(0xFFB9A7F5))),
+          ]),
+        ),
+      ]),
+    );
+  }
+
   Widget _row(int i, FilmRow r) {
     const rk = [Color(0xFFF5C518), Color(0xFFC9D1DC), Color(0xFFD08B4B), Color(0xFF5B8DEF)];
     const lb = ['Kazandı', '2. oldu', '3. oldu', '4. oldu'];
@@ -203,7 +275,7 @@ class _FilmSheetState extends State<_FilmSheet> {
       decoration: BoxDecoration(
         color: i == 0 ? const Color(0xFF241F10) : _card,
         borderRadius: BorderRadius.circular(16),
-        border: i == 0 ? Border.all(color: const Color(0xFF6B5A1E)) : null,
+        border: i == 0 ? Border.all(color: const Color(0xFF6B5A1E)) : (widget.meName != null && _nk(r.name) == _nk(widget.meName!) ? Border.all(color: const Color(0xFF5B3FB8)) : null),
       ),
       child: Row(children: [
         Container(

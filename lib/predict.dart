@@ -695,17 +695,50 @@ void _pickType() {
   );
 }
 
+bool _resFilmBusy = false;
+
+Future<void> _openRaceFilm(Race r, RaceResult rr) async {
+  if (_resFilmBusy || rr.video.isEmpty) return;
+  _resFilmBusy = true;
+  final messenger = ScaffoldMessenger.of(context);
+  messenger.showSnackBar(const SnackBar(content: Text('Video yükleniyor…'), duration: Duration(seconds: 8)));
+  try {
+    final mp4 = await getVideoMp4(rr.video, s.iso);
+    messenger.hideCurrentSnackBar();
+    if (!mounted) return;
+    if (mp4 == null) {
+      await launchUrl(Uri.parse(rr.video), mode: LaunchMode.externalApplication);
+      return;
+    }
+    final rows = <FilmRow>[];
+    for (final no in rr.sira.take(4)) {
+      String nm = '';
+      for (final x in r.atlar) {
+        if (x.no == no) nm = x.name;
+      }
+      rows.add(FilmRow(no, nm, rr.gny[no]));
+    }
+    final p = s.iso.split('-');
+    await showRaceFilm(context, url: mp4, race: r.no, city: _city, dateLabel: '${p[2]}.${p[1]}.${p[0]}', rows: rows);
+  } catch (_) {
+    messenger.hideCurrentSnackBar();
+    _toast('Video açılamadı.');
+  } finally {
+    _resFilmBusy = false;
+  }
+}
+
 Widget _raceResult(AppColors c, Race r) {
   final rr = s.results[_city]?[r.no];
   if (rr == null || (rr.sira.isEmpty && rr.bahis.isEmpty)) return const SizedBox.shrink();
-  String adi(int no) {
+  Horse? at(int no) {
     for (final h in r.atlar) {
-      if (h.no == no) return h.name;
+      if (h.no == no) return h;
     }
-    return '';
+    return null;
   }
 
-  Widget head(String t) => Padding(padding: const EdgeInsets.fromLTRB(12, 10, 12, 6), child: Text(t, style: jakarta(13, FontWeight.w800, c.ac)));
+  Widget head(String t) => Padding(padding: const EdgeInsets.fromLTRB(12, 10, 12, 6), child: Text(t, style: jakarta(12, FontWeight.w800, c.mu, ls: 0.5)));
   return Container(
     width: double.infinity,
     margin: const EdgeInsets.only(top: 8),
@@ -713,21 +746,43 @@ Widget _raceResult(AppColors c, Race r) {
     clipBehavior: Clip.antiAlias,
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       if (rr.sira.isNotEmpty) ...[
-        head('${r.no}. koşu sonucu'),
+        head('KOŞU BİTTİ'),
         for (var i = 0; i < rr.sira.length && i < 4; i++)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            decoration: BoxDecoration(border: Border(top: BorderSide(color: c.ln))),
-            child: Row(children: [
-              SizedBox(width: 22, child: Text('${i + 1}', style: jakarta(12.5, FontWeight.w800, c.mu))),
-              SizedBox(width: 28, child: Text('${rr.sira[i]}', style: jakarta(13, FontWeight.w800, c.tx))),
-              Expanded(child: Text(adi(rr.sira[i]), style: jakarta(12.5, FontWeight.w700, c.tx))),
-              if ((rr.gny[rr.sira[i]] ?? '').isNotEmpty) Text('Gny ${rr.gny[rr.sira[i]]}', style: jakarta(12.5, FontWeight.w800, c.ac)),
-            ]),
-          ),
+          Builder(builder: (_) {
+            final no = rr.sira[i];
+            final h = at(no);
+            final win = i == 0;
+            final g = rr.gny[no] ?? '';
+            final pc = win ? const Color(0xFF7C3AED) : const Color(0xFF2563EB);
+            return Container(
+              margin: const EdgeInsets.fromLTRB(8, 0, 8, 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(color: win ? const Color(0xFFD97706).withAlpha(30) : c.sf2, borderRadius: BorderRadius.circular(12)),
+              child: Row(children: [
+                NoBadge(no, size: 32),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(h?.name ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(14, FontWeight.w800, c.tx)),
+                    if ((h?.jockey ?? '').isNotEmpty) Text(h!.jockey, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(11.5, FontWeight.w600, c.mu)),
+                  ]),
+                ),
+                Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  Text(win ? 'Kazandı' : '${i + 1}. oldu', style: jakarta(12, FontWeight.w800, win ? const Color(0xFFD97706) : c.mu)),
+                  if (g.isNotEmpty)
+                    Container(
+                      margin: const EdgeInsets.only(top: 3),
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
+                      decoration: BoxDecoration(color: pc.withAlpha(28), borderRadius: BorderRadius.circular(10), border: Border.all(color: pc.withAlpha(60))),
+                      child: Text('Ganyan $g', style: jakarta(11.5, FontWeight.w800, pc)),
+                    ),
+                ]),
+              ]),
+            );
+          }),
       ],
       if (rr.bahis.isNotEmpty) ...[
-        head('Bahis ödemeleri'),
+        head('BAHİS ÖDEMELERİ'),
         for (final x in rr.bahis)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
@@ -739,6 +794,21 @@ Widget _raceResult(AppColors c, Race r) {
             ]),
           ),
       ],
+      if (rr.video.isNotEmpty)
+        GestureDetector(
+          onTap: () => _openRaceFilm(r, rr),
+          child: Container(
+            margin: const EdgeInsets.all(8),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            decoration: BoxDecoration(color: const Color(0xFF0F1420), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFFE0305A).withAlpha(120))),
+            child: Row(children: [
+              Container(width: 34, height: 34, decoration: const BoxDecoration(color: Color(0xFFE0305A), shape: BoxShape.circle), child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 22)),
+              const SizedBox(width: 10),
+              Expanded(child: Text('Koşu videosunu izle', style: jakarta(14, FontWeight.w800, Colors.white))),
+              Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4), decoration: BoxDecoration(color: const Color(0xFFE0305A), borderRadius: BorderRadius.circular(8)), child: Text('VİDEO', style: jakarta(11, FontWeight.w800, Colors.white))),
+            ]),
+          ),
+        ),
     ]),
   );
 }
@@ -799,11 +869,66 @@ Future<void> _playIdman(Horse h) async {
   }
 }
 
-Future<void> _playVideo(String url, String title, String horseName) async {
+String _nkey(String x) => x.toUpperCase().replaceAll('İ', 'I').replaceAll('Ğ', 'G').replaceAll('Ü', 'U').replaceAll('Ş', 'S').replaceAll('Ö', 'O').replaceAll('Ç', 'C').replaceAll(RegExp(r'[^A-Z0-9]'), '');
+
+// Atın o yarışının ilk 4'ünü getirir (şehir + tarih + koşu no ile)
+Future<List<FilmRow>> _sonucYukle(AtRow row) async {
+  final m = RegExp(r'^(\d{1,2})[./](\d{1,2})[./](\d{4})$').firstMatch(row.t);
+  final kn = int.tryParse(row.kn);
+  if (m == null || kn == null || row.sh.isEmpty) throw 'eksik';
+  final iso = '${m.group(3)}-${m.group(2)!.padLeft(2, '0')}-${m.group(1)!.padLeft(2, '0')}';
+  final hedef = _nkey(row.sh);
+  City? c;
+  for (final x in await getCities(iso)) {
+    final a = _nkey(x.name);
+    if (a.startsWith(hedef) || hedef.startsWith(a)) {
+      c = x;
+      break;
+    }
+  }
+  if (c == null) throw 'sehir yok';
+  final races = await getProgram(c, iso);
+  final res = await getResults(c, iso, races);
+  final rr = res[kn];
+  if (rr == null || rr.sira.isEmpty) throw 'sonuc yok';
+  Race? race;
+  for (final k in races) {
+    if (k.no == kn) race = k;
+  }
+  final rows = <FilmRow>[];
+  for (final no in rr.sira.take(4)) {
+    var nm = '';
+    for (final h in race?.atlar ?? const <Horse>[]) {
+      if (h.no == no) nm = h.name;
+    }
+    rows.add(FilmRow(no, nm, rr.gny[no]));
+  }
+  return rows;
+}
+
+Future<void> _playVideo(String url, String title, String horseName, [AtRow? row]) async {
   if (url.isEmpty) return;
   final mp4 = await getVideoMp4(url, s.iso);
   if (mp4 != null && mounted) {
-    await showRaceFilm(context, url: mp4, race: _race, city: _city, dateLabel: '', rows: const [], title: title, subtitle: horseName, badge: '▶');
+    final lab = title == 'Son Galibiyet' ? 'Son galibiyet' : 'Son yarış';
+    if (row != null) {
+      await showRaceFilm(
+        context,
+        url: mp4,
+        race: _race,
+        city: _city,
+        dateLabel: '',
+        rows: const [],
+        title: horseName,
+        subtitle: '$lab · ${row.t}',
+        badge: '▶',
+        meName: horseName,
+        meSub: '$lab · ${row.sh} ${row.kn}. Koşu',
+        loader: () => _sonucYukle(row),
+      );
+    } else {
+      await showRaceFilm(context, url: mp4, race: _race, city: _city, dateLabel: '', rows: const [], title: title, subtitle: horseName, badge: '▶');
+    }
   } else {
     launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
   }
@@ -851,8 +976,8 @@ Widget _horseDetail(AppColors c, Horse h, String key) {
           ),
         );
 
-  Widget vidBtn(String url, String title) => GestureDetector(
-    onTap: () => _playVideo(url, title, h.name),
+  Widget vidBtn(String url, String title, [AtRow? row]) => GestureDetector(
+    onTap: () => _playVideo(url, title, h.name, row),
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(color: const Color(0xFF111827), borderRadius: BorderRadius.circular(16)),
@@ -907,7 +1032,7 @@ Widget _horseDetail(AppColors c, Horse h, String key) {
             const SizedBox(height: 4),
             Row(children: [
               Expanded(child: Text(yaris.d, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(13, FontWeight.w800, const Color(0xFF7C3AED)))),
-              if (yaris.v.isNotEmpty) vidBtn(yaris.v, "Son Yarış"),
+              if (yaris.v.isNotEmpty) vidBtn(yaris.v, "Son Yarış", yaris),
             ]),
           ]),
         );
@@ -954,7 +1079,7 @@ Widget _horseDetail(AppColors c, Horse h, String key) {
             Row(
               children: [
                 Expanded(child: Text('${gal.t} · ${gal.d}', maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(12, FontWeight.w800, const Color(0xFFD97706)))),
-                if (gal.v.isNotEmpty) vidBtn(gal.v, "Son Galibiyet"),
+                if (gal.v.isNotEmpty) vidBtn(gal.v, "Son Galibiyet", gal),
               ],
             ),
           ]),
