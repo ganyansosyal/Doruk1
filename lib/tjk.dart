@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:html/dom.dart';
 import 'package:html/parser.dart' as hp;
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 
 const _backend = 'https://tiny-sunset-7f18.bilyoncu001.workers.dev';
 
@@ -26,7 +28,65 @@ String _tjkDate(String iso) {
 
 String _era(String iso) => iso.compareTo(isoToday()) < 0 ? 'yesterday' : 'today';
 
-Future<String> _fetch(String url, {int sec = 20, int retry = 2}) async {
+final Map<String, ({DateTime t, String body})> _htmlCache = {};
+Directory? _cacheDir;
+
+// Geçmiş tarihlerin verisi değişmez → 30 gün; bugünün verisi kısa süre
+int _diskTtl(String iso, int normal) => iso.compareTo(isoToday()) < 0 ? 2592000 : normal;
+
+String _hash(String s) {
+  var h = 0xcbf29ce484222325;
+  for (final u in s.codeUnits) {
+    h = ((h ^ u) * 0x100000001b3) & 0x7fffffffffffffff;
+  }
+  return h.toRadixString(16);
+}
+
+Future<File?> _diskFile(String url) async {
+  try {
+    var d = _cacheDir;
+    if (d == null) {
+      d = Directory('${(await getTemporaryDirectory()).path}/tjk');
+      if (!await d.exists()) await d.create(recursive: true);
+      _cacheDir = d;
+    }
+    return File('${d.path}/${_hash(url)}.html');
+  } catch (_) {
+    return null;
+  }
+}
+
+/// ttl: bellek önbelleği (sn), disk: disk önbelleği (sn). 0 = kullanma.
+Future<String> _fetch(String url, {int sec = 20, int retry = 2, int ttl = 0, int disk = 0}) async {
+  if (ttl > 0) {
+    final hit = _htmlCache[url];
+    if (hit != null && DateTime.now().difference(hit.t).inSeconds < ttl) return hit.body;
+  }
+  File? f;
+  if (disk > 0) {
+    f = await _diskFile(url);
+    try {
+      if (f != null && await f.exists() && DateTime.now().difference(await f.lastModified()).inSeconds < disk) {
+        final body = await f.readAsString();
+        if (body.isNotEmpty) {
+          if (ttl > 0) _htmlCache[url] = (t: DateTime.now(), body: body);
+          return body;
+        }
+      }
+    } catch (_) {}
+  }
+  final body = await _fetchRaw(url, sec: sec, retry: retry);
+  if (ttl > 0) {
+    if (_htmlCache.length > 40) _htmlCache.clear();
+    _htmlCache[url] = (t: DateTime.now(), body: body);
+  }
+  if (f != null) {
+    f.writeAsString(body).catchError((_) => f!);
+  }
+  return body;
+}
+
+Future<String> _fetchRaw(String url, {int sec = 20, int retry = 2}) async {
   Object? last;
   final ep = '$_backend?url=${Uri.encodeComponent(url)}&_cb=${DateTime.now().millisecondsSinceEpoch}';
   for (var i = 0; i <= retry; i++) {
@@ -58,6 +118,10 @@ class Horse {
   final int? agf, hp;
   final double? gny, siklet;
   final List<String> son6;
+  final List<String> son6p; // son6 ile aynı sırada pist harfi: Ç / K / S / ''
+  final List<({String k, String a})> taki;
+  final String st, s20, orijin, sahip, antrenor, eid;
+  final String idmHref, idmK, idmA;
   Horse({
     required this.no,
     required this.name,
@@ -70,6 +134,17 @@ class Horse {
     this.gny,
     this.siklet,
     this.son6 = const [],
+    this.son6p = const [],
+    this.taki = const [],
+    this.st = '',
+    this.s20 = '',
+    this.orijin = '',
+    this.sahip = '',
+    this.antrenor = '',
+    this.eid = '',
+    this.idmHref = '',
+    this.idmK = '',
+    this.idmA = '',
   });
 }
 
@@ -143,7 +218,15 @@ bool _isHead(Element e, {int maxLen = 60}) {
 Future<List<City>> getCities(String iso) async {
   final url =
       'https://www.tjk.org/TR/yarissever/Info/Page/GunlukYarisProgrami?QueryParameter_Tarih=${Uri.encodeComponent(_tjkDate(iso))}&Era=${_era(iso)}';
-  final doc = hp.parse(await _fetch(url));
+  final html = await _fetch(url, ttl: 300, disk: _diskTtl(iso, 600));
+  final list = await compute(_citiesIso, html);
+  if (list.isEmpty) throw Exception("TJK'da bu tarih için yayınlanmış bir koşu programı bulunamadı.");
+  return list;
+}
+
+// Ayrı isolate'te çalışır (UI thread'i bloklamaz)
+List<City> _citiesIso(String html) {
+  final doc = hp.parse(html);
   final seen = <String>{};
   final list = <City>[];
   for (final a in doc.querySelectorAll('a[href]')) {
@@ -168,7 +251,7 @@ Future<List<City>> getCities(String iso) async {
         (first.isNotEmpty && !yerli.contains(first));
     if (adi.isNotEmpty) list.add(City(m.group(1)!, adi, yd));
   }
-  if (list.isEmpty) throw Exception("TJK'da bu tarih için yayınlanmış bir koşu programı bulunamadı.");
+  if (list.isEmpty) return list;
   final yerli = list.where((c) => !c.yd).toList();
   return yerli.isNotEmpty ? yerli : list;
 }
@@ -182,6 +265,132 @@ int? _col(List<String> heads, dynamic key) {
     if (i >= 0) return i;
   }
   return null;
+}
+
+// Son 6 hücresindeki her karakter ve (varsa) renginden pist harfi
+String _pistHarf(String c) {
+  if (c == 'g') return 'Ç';
+  if (c == 'k') return 'K';
+  if (c == 's') return 'S';
+  if (c.isEmpty) return '';
+  final t = c.trim().toLowerCase();
+  int? r, g, b;
+  final hx = RegExp(r'^#([0-9a-f]{3}|[0-9a-f]{6})$').firstMatch(t);
+  if (hx != null) {
+    var h = hx.group(1)!;
+    if (h.length == 3) h = h.split('').map((x) => x + x).join();
+    r = int.parse(h.substring(0, 2), radix: 16);
+    g = int.parse(h.substring(2, 4), radix: 16);
+    b = int.parse(h.substring(4, 6), radix: 16);
+  } else {
+    final rg = RegExp(r'^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)').firstMatch(t);
+    if (rg != null) {
+      r = int.parse(rg.group(1)!);
+      g = int.parse(rg.group(2)!);
+      b = int.parse(rg.group(3)!);
+    } else {
+      if (RegExp(r'green|lime|olive').hasMatch(t)) return 'Ç';
+      if (RegExp(r'brown|maroon|sienna|chocolate|peru|tan|orange|red').hasMatch(t)) return 'K';
+      if (RegExp(r'blue|navy|teal|cyan').hasMatch(t)) return 'S';
+      return '';
+    }
+  }
+  final mx = [r, g, b].reduce((x, y) => x > y ? x : y);
+  final mn = [r, g, b].reduce((x, y) => x < y ? x : y);
+  final d = mx - mn;
+  if (d < 25) return '';
+  double hue = mx == r ? ((g - b) / d) % 6 : mx == g ? (b - r) / d + 2 : (r - g) / d + 4;
+  hue = (hue * 60 + 360) % 360;
+  if (hue >= 75 && hue < 170) return 'Ç';
+  if (hue >= 170 && hue < 270) return 'S';
+  return 'K';
+}
+
+List<({String s, String c})> _son6Ayir(Element? hucre) {
+  final out = <({String s, String c})>[];
+  if (hucre == null) return out;
+  String renk(Element el) {
+    final sc = (el.attributes['class'] ?? '').toLowerCase();
+    if (RegExp('cim|çim|green|yesil').hasMatch(sc)) return 'g';
+    if (RegExp('kum|sand|brown|kahve').hasMatch(sc)) return 'k';
+    if (RegExp('sentetik|synth|blue').hasMatch(sc)) return 's';
+    final st = RegExp(r'color\s*:\s*([^;]+)', caseSensitive: false).firstMatch(el.attributes['style'] ?? '');
+    return (st?.group(1) ?? el.attributes['color'] ?? '').trim();
+  }
+
+  void walk(Node n, String c) {
+    if (n is Text) {
+      for (final m in RegExp(r'[0-9A-Za-z\-]').allMatches(n.data)) {
+        out.add((s: m.group(0)!, c: c));
+      }
+    } else if (n is Element) {
+      final rc = renk(n);
+      for (final k in n.nodes) {
+        walk(k, rc.isNotEmpty ? rc : c);
+      }
+    }
+  }
+
+  walk(hucre, '');
+  return out.length > 6 ? out.sublist(out.length - 6) : out;
+}
+
+final _takiKod = RegExp(r'^[A-ZÇĞİÖŞÜ]{1,4}$');
+const _takiBilinen = ['KGK', 'KDB', 'ÖDB', 'SKG', 'GKR', 'DB', 'KG', 'SK', 'ÖG', 'K'];
+
+List<({String k, String a})> _takiCikar(Element? hucre, String isimHam, Element? atLinki) {
+  final out = <({String k, String a})>[];
+  void ekle(String k, String a) {
+    k = k.replaceAll(RegExp(r'\s+'), '');
+    if (!_takiKod.hasMatch(k)) return;
+    a = a.replaceAll(RegExp(r'\s+'), ' ').trim();
+    final i = out.indexWhere((x) => x.k == k);
+    if (i >= 0) {
+      if (out[i].a.isEmpty && a.isNotEmpty) out[i] = (k: k, a: a);
+      return;
+    }
+    out.add((k: k, a: a));
+  }
+
+  if (hucre != null) {
+    final linkMetin = atLinki == null ? '' : _clean(atLinki.text);
+    for (final el in hucre.querySelectorAll('[title],[data-original-title],[data-title],[data-content],[data-tooltip],[aria-label],[class*="taki"],[class*="ekipman"],[class*="tooltip"],sup,sub')) {
+      if (identical(el, atLinki)) continue;
+      var inLink = false;
+      for (Element? p = el.parent; p != null; p = p.parent) {
+        if (identical(p, atLinki)) {
+          inLink = true;
+          break;
+        }
+      }
+      if (inLink) continue;
+      var ta = '';
+      for (final n in ['title', 'data-original-title', 'data-title', 'data-content', 'data-tooltip', 'aria-label']) {
+        final v = (el.attributes[n] ?? '').trim();
+        if (v.isNotEmpty) {
+          ta = v;
+          break;
+        }
+      }
+      final t = _clean(el.text);
+      if (t.isEmpty || t == linkMetin) continue;
+      if (_takiKod.hasMatch(t)) {
+        ekle(t, ta);
+        continue;
+      }
+      final m = RegExp(r'^([A-ZÇĞİÖŞÜ]+)([A-ZÇĞİÖŞÜ][a-zçğıöşü][\s\S]*)$').firstMatch(t);
+      if (m != null && _takiKod.hasMatch(m.group(1)!)) ekle(m.group(1)!, ta.isNotEmpty ? ta : m.group(2)!);
+    }
+  }
+  if (out.isEmpty && isimHam.isNotEmpty) {
+    var t = isimHam.replaceAll('\u00a0', ' ');
+    if (atLinki != null) t = t.replaceAll(atLinki.text.trim(), ' ');
+    t = t.replaceAll(RegExp(r'\(\s*\d+\s*\)'), ' ').replaceAll(RegExp(r'\(\s*Ko[şs]maz\s*\)', caseSensitive: false), ' ');
+    for (final w in t.split(RegExp(r'\s+'))) {
+      if (_takiBilinen.contains(w)) ekle(w, '');
+    }
+  }
+  return out;
 }
 
 List<Horse> _parseHorses(Element table) {
@@ -205,11 +414,19 @@ List<Horse> _parseHorses(Element table) {
   final iKgs = _col(heads, 'KGS');
   final iGny = _col(heads, 'Gny');
   final iAgf = _col(heads, 'AGF');
+  final iSt = exact('St') ?? _col(heads, 'St');
+  final iOri = _col(heads, 'Orijin');
+  final iSah = _col(heads, 'Sahip');
+  final iAnt = _col(heads, ['Antrenör', 'Antrenor', 'Antr.']);
+  final iS20 = _col(heads, 's20');
+  final iEid = _col(heads, 'En İyi D');
+  final iIdm = _col(heads, ['İdm', 'Idm']);
   final out = <Horse>[];
   for (var i = bi + 1; i < rows.length; i++) {
     final tds = rows[i].querySelectorAll('td');
     if (tds.length < 4) continue;
     String? al(int? idx) => idx != null && idx < tds.length ? tds[idx].text.trim() : null;
+    String tek(int? idx) => _clean(al(idx) ?? '').replaceAll(RegExp(r'^-$'), '');
     final isimHam = al(iIsim);
     if (isimHam == null || isimHam.isEmpty) continue;
     final rowText = rows[i].outerHtml;
@@ -226,10 +443,26 @@ List<Horse> _parseHorses(Element table) {
       final a = tds[iJok].querySelector('a');
       jok = _clean((a?.text.trim().isNotEmpty ?? false) ? a!.text : tds[iJok].text).replaceAll(RegExp(r'\s*AP\s*Apranti.*$', caseSensitive: false), '').replaceAll(RegExp(r'\s+AP$'), '').trim();
     }
-    final s6 = <String>[];
-    if (iS6 != null && iS6 < tds.length) {
-      for (final m in RegExp(r'[0-9A-Za-z\-]').allMatches(tds[iS6].text)) {
-        s6.add(m.group(0)!);
+    final s6x = _son6Ayir(iS6 != null && iS6 < tds.length ? tds[iS6] : null);
+    final isimHucre = iIsim != null && iIsim < tds.length ? tds[iIsim] : null;
+    final atLinki = isimHucre?.querySelector('a');
+    final taki = _takiCikar(isimHucre, isimHam, atLinki);
+
+    // İdman videosu: İdm hücresindeki bağlantıdan KosuKodu + Atkodu
+    var idmHref = '', idmK = '', idmA = '';
+    if (iIdm != null && iIdm < tds.length) {
+      final hc = tds[iIdm];
+      for (final el in [hc, ...hc.querySelectorAll('*')]) {
+        final v = el.attributes.values.join(' ');
+        final k1 = RegExp(r'KosuKodu=(-?\d+)', caseSensitive: false).firstMatch(v);
+        final a1 = RegExp(r'Atkodu=(\d+)', caseSensitive: false).firstMatch(v);
+        if (k1 != null && a1 != null) {
+          idmK = k1.group(1)!;
+          idmA = a1.group(1)!;
+          final h = el.attributes['href'] ?? '';
+          if (h.isNotEmpty) idmHref = h.startsWith('http') ? h : 'https://www.tjk.org${h.startsWith('/') ? '' : '/'}$h';
+          break;
+        }
       }
     }
     out.add(Horse(
@@ -243,7 +476,18 @@ List<Horse> _parseHorses(Element table) {
       hp: int.tryParse((al(iHp) ?? '').trim()),
       gny: double.tryParse((al(iGny) ?? '').replaceAll(',', '.')),
       siklet: double.tryParse((al(iSik) ?? '').replaceAll(',', '.')),
-      son6: s6.length > 6 ? s6.sublist(s6.length - 6) : s6,
+      son6: s6x.map((e) => e.s).toList(),
+      son6p: s6x.map((e) => _pistHarf(e.c)).toList(),
+      taki: taki,
+      st: RegExp(r'^(\d{1,2})(?!\d)').firstMatch(_clean(al(iSt) ?? ''))?.group(1) ?? '',
+      s20: tek(iS20),
+      orijin: tek(iOri),
+      sahip: tek(iSah),
+      antrenor: tek(iAnt),
+      eid: tek(iEid),
+      idmHref: idmHref,
+      idmK: idmK,
+      idmA: idmA,
     ));
   }
   return out;
@@ -391,7 +635,11 @@ Map<int, List<String>> _kosuOyunlari(Document doc) {
 Future<List<Race>> getProgram(City c, String iso) async {
   final url =
       'https://www.tjk.org/TR/yarissever/Info/Sehir/GunlukYarisProgrami?SehirId=${c.id}&QueryParameter_Tarih=${Uri.encodeComponent(_tjkDate(iso))}&SehirAdi=${Uri.encodeComponent(c.name)}&Era=${_era(iso)}';
-  final html = await _fetch(url, sec: 45);
+  final html = await _fetch(url, sec: 45, ttl: 120, disk: _diskTtl(iso, 600));
+  return compute(_programIso, html);
+}
+
+List<Race> _programIso(String html) {
   final doc = hp.parse(html);
   var races = _parseRaces(doc, _ayakBaslangic(doc), _kosuOyunlari(doc));
   if (races.isEmpty) {
@@ -463,7 +711,15 @@ List<Bahis> _bahisler(String metin) {
 Future<Map<int, RaceResult>> getResults(City c, String iso, List<Race> kosular) async {
   final url =
       'https://www.tjk.org/TR/yarissever/Info/Sehir/GunlukYarisSonuclari?SehirId=${c.id}&QueryParameter_Tarih=${Uri.encodeComponent(_tjkDate(iso))}&SehirAdi=${Uri.encodeComponent(c.name)}&Era=${_era(iso)}';
-  final html = await _fetch(url, sec: 30, retry: 1);
+  final past = iso.compareTo(isoToday()) < 0;
+  final html = await _fetch(url, sec: 30, retry: 1, ttl: past ? 3600 : 0, disk: past ? _diskTtl(iso, 0) : 0);
+  return compute(_resultsIso, <Object>[html, c, kosular]);
+}
+
+Map<int, RaceResult> _resultsIso(List<Object> a) {
+  final html = a[0] as String;
+  final c = a[1] as City;
+  final kosular = (a[2] as List).cast<Race>();
   final doc = hp.parse(html);
   final all = _all(doc);
   final idx = <Element, int>{for (var i = 0; i < all.length; i++) all[i]: i};
@@ -659,8 +915,20 @@ class TjkStore extends ChangeNotifier {
     _timer = Timer.periodic(const Duration(minutes: 3), (_) => refreshResults());
   }
 
+  bool _refreshing = false;
+
   Future<void> refreshResults({bool force = false}) async {
-    for (final c in cities) {
+    if (_refreshing) return;
+    _refreshing = true;
+    try {
+      await _refreshAll(force);
+    } finally {
+      _refreshing = false;
+    }
+  }
+
+  Future<void> _refreshAll(bool force) async {
+    for (final c in List<City>.of(cities)) {
       final rs = races(c.name);
       final need = rs.any((r) => raceDone(c.name, r.no) && (results[c.name]?[r.no] == null || force));
       if (!need && !force) continue;
@@ -676,4 +944,46 @@ class TjkStore extends ChangeNotifier {
   Future<void> ensureLoaded() async {
     if (cities.isEmpty && !loading) await load(iso);
   }
+}
+
+/* ---------------- Koşu filmi ---------------- */
+
+/// Koşu video sayfasından (veya doğrudan mp4 bağlantısından) oynatılabilir mp4 adresini bulur.
+Future<String?> getVideoMp4(String url, String iso) async {
+  if (RegExp(r'\.mp4(\?|$)', caseSensitive: false).hasMatch(url)) {
+    return url.startsWith('//') ? 'https:$url' : url;
+  }
+  final past = iso.compareTo(isoToday()) < 0;
+  final html = await _fetch(url, sec: 30, retry: 1, ttl: 600, disk: past ? 2592000 : 600);
+  final m = RegExp(r'(?:https?:)?//video-cdn\.tjk\.org/videoftp/[^"\s<>\\]+?\.mp4', caseSensitive: false).firstMatch(html) ??
+      RegExp(r'videoftp/\d{4}/\d{2}/[\w-]+\.mp4', caseSensitive: false).firstMatch(html);
+  if (m == null) return null;
+  var u = m.group(0)!;
+  if (u.startsWith('//')) {
+    u = 'https:$u';
+  } else if (!RegExp(r'^https?:', caseSensitive: false).hasMatch(u)) {
+    u = 'https://video-cdn.tjk.org/$u';
+  }
+  return u;
+}
+
+/// İdman videosu: önce TJK'nın idman sayfasındaki bağlantıdan, olmazsa bilinen CDN adresinden (ay ±1) dener.
+Future<String?> getIdmanMp4(Horse h, String iso) async {
+  if (h.idmHref.isNotEmpty) {
+    try {
+      final u = await getVideoMp4(h.idmHref, iso);
+      if (u != null) return u;
+    } catch (_) {}
+  }
+  if (h.idmK.isEmpty || h.idmA.isEmpty) return null;
+  final p = iso.split('-').map(int.parse).toList();
+  for (final d in [0, -1, 1]) {
+    final dt = DateTime(p[0], p[1] + d, 1);
+    final u = 'https://video-cdn.tjk.org/videoftp/idmanpisti/${dt.year}/${dt.month.toString().padLeft(2, '0')}/${h.idmK}-${h.idmA}.mp4';
+    try {
+      final r = await http.head(Uri.parse(u)).timeout(const Duration(seconds: 8));
+      if (r.statusCode == 200) return u;
+    } catch (_) {}
+  }
+  return null;
 }

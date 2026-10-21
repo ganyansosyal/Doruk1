@@ -195,34 +195,44 @@ class _FeedPageState extends State<FeedPage> {
             var list = snap.data!.docs.map((d) => Post(d.id, d.data())).where((p) => !p.hidden).toList();
             if (_filter == 'mine') list = list.where((p) => p.uid == _myUid).toList();
             if (_filter == 'follow') list = list.where((p) => following.contains(p.uid)).toList();
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
-              children: [
-                _composer(c),
-                const SizedBox(height: 12),
-                Row(children: [
-                  _chip(c, 'all', 'Akış', Icons.home_outlined),
-                  const SizedBox(width: 8),
-                  _chip(c, 'mine', 'Paylaştıklarım', Icons.person_outline),
-                  const SizedBox(width: 8),
-                  _chip(c, 'follow', 'Takip', Icons.favorite_border),
-                ]),
-                const SizedBox(height: 14),
-                if (list.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.all(28),
-                    child: Text(
-                      _filter == 'follow'
-                          ? 'Takip ettiğin kimsenin paylaşımı yok.'
-                          : _filter == 'mine'
-                              ? 'Henüz bir şey paylaşmadın.'
-                              : 'Henüz paylaşım yok. İlk paylaşımı sen yap!',
-                      textAlign: TextAlign.center,
-                      style: jakarta(14, FontWeight.w600, c.mu),
-                    ),
+            final head = <Widget>[
+              _composer(c),
+              const SizedBox(height: 12),
+              Row(children: [
+                _chip(c, 'all', 'Akış', Icons.home_outlined),
+                const SizedBox(width: 8),
+                _chip(c, 'mine', 'Paylaştıklarım', Icons.person_outline),
+                const SizedBox(width: 8),
+                _chip(c, 'follow', 'Takip', Icons.favorite_border),
+              ]),
+              const SizedBox(height: 14),
+              if (list.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(28),
+                  child: Text(
+                    _filter == 'follow'
+                        ? 'Takip ettiğin kimsenin paylaşımı yok.'
+                        : _filter == 'mine'
+                            ? 'Henüz bir şey paylaşmadın.'
+                            : 'Henüz paylaşım yok. İlk paylaşımı sen yap!',
+                    textAlign: TextAlign.center,
+                    style: jakarta(14, FontWeight.w600, c.mu),
                   ),
-                for (final p in list) PostCard(key: ValueKey(p.id), post: p, following: following.contains(p.uid)),
-              ],
+                ),
+            ];
+            // Tembel liste: yalnızca ekrandaki kartlar oluşturulur
+            return ListView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+              cacheExtent: 600,
+              itemCount: head.length + list.length,
+              itemBuilder: (context, i) {
+                if (i < head.length) return head[i];
+                final p = list[i - head.length];
+                return RepaintBoundary(
+                  key: ValueKey(p.id),
+                  child: PostCard(key: ValueKey(p.id), post: p, following: following.contains(p.uid)),
+                );
+              },
             );
           },
         );

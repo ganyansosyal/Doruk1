@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'film.dart';
 import 'predict.dart' show NoBadge, isoLabel, isoTag;
 import 'theme.dart';
 import 'tjk.dart';
@@ -30,7 +31,7 @@ class _ResultsPageState extends State<ResultsPage> {
   void initState() {
     super.initState();
     s.addListener(_u);
-    s.ensureLoaded().then((_) => s.refreshResults(force: true));
+    s.ensureLoaded().then((_) => s.refreshResults());
     _t = Timer.periodic(const Duration(seconds: 60), (_) => s.refreshResults());
     if (s.cities.isNotEmpty) s.refreshResults();
   }
@@ -68,6 +69,45 @@ class _ResultsPageState extends State<ResultsPage> {
   }
 
   Future<void> _open(String u) => launchUrl(Uri.parse(u), mode: LaunchMode.externalApplication);
+
+  bool _filmBusy = false;
+
+  // İzle: mp4 adresini TJK sayfasından okuyup videoyu uygulama içinde oynat; bulunamazsa tarayıcıya düş
+  Future<void> _play(String city, int r, String vid) async {
+    if (_filmBusy) return;
+    _filmBusy = true;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(const SnackBar(content: Text('Video yükleniyor…'), duration: Duration(seconds: 8)));
+    try {
+      final mp4 = await getVideoMp4(vid, s.iso);
+      messenger.hideCurrentSnackBar();
+      if (!mounted) return;
+      if (mp4 == null) {
+        await _open(vid);
+        return;
+      }
+      final res = s.resOf(city, r) ?? const <int>[];
+      final race = s.race(city, r);
+      final rows = <FilmRow>[];
+      for (final no in res.take(4)) {
+        Horse? h;
+        if (race != null) {
+          for (final x in race.atlar) {
+            if (x.no == no) h = x;
+          }
+        }
+        rows.add(FilmRow(no, h?.name ?? '', s.results[city]?[r]?.gny[no]));
+      }
+      final p = s.iso.split('-');
+      await showRaceFilm(context,
+          url: mp4, race: r, city: city, dateLabel: '${p[2]}.${p[1]}.${p[0]}', rows: rows);
+    } catch (_) {
+      messenger.hideCurrentSnackBar();
+      await _open(vid);
+    } finally {
+      _filmBusy = false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -188,7 +228,7 @@ class _ResultsPageState extends State<ResultsPage> {
             ])),
             if (s.results[city]?[r]?.gny[no] != null)
               Padding(padding: const EdgeInsets.only(right: 8), child: Text('Gny ${s.results[city]![r]!.gny[no]}', style: jakarta(13, FontWeight.w800, c.ac))),
-            if (vid.isNotEmpty) GestureDetector(onTap: () => _open(vid), child: Text('İzle', style: jakarta(13, FontWeight.w800, c.red))),
+            if (vid.isNotEmpty) GestureDetector(onTap: () => _play(city, r, vid), child: Text('İzle', style: jakarta(13, FontWeight.w800, c.red))),
           ] else
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('$r. koşu', style: jakarta(14.5, FontWeight.w800, c.mu)),

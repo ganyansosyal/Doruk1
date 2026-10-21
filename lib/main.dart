@@ -5,6 +5,7 @@ import 'splash.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  preloadFonts();
   await initFirebase();
   runApp(const GanyanApp());
 }

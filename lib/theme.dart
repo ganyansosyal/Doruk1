@@ -72,13 +72,26 @@ ThemeData buildTheme(AppColors c, Brightness b) {
   );
 }
 
+final Map<int, TextStyle> _jakartaCache = {};
+
 TextStyle jakarta(double size, FontWeight w, Color color, {double? ls}) {
-  return GoogleFonts.plusJakartaSans(
-    fontSize: size,
-    fontWeight: w,
-    color: color,
-    letterSpacing: ls,
+  final key = Object.hash(size, w.index, color.toARGB32(), ls);
+  return _jakartaCache.putIfAbsent(
+    key,
+    () => GoogleFonts.plusJakartaSans(
+      fontSize: size,
+      fontWeight: w,
+      color: color,
+      letterSpacing: ls,
+    ),
   );
+}
+
+/// Yazı tiplerini uygulama açılırken indirmeye başlat (ilk çizimde takılma olmasın).
+void preloadFonts() {
+  for (final w in const [FontWeight.w500, FontWeight.w600, FontWeight.w700, FontWeight.w800]) {
+    GoogleFonts.plusJakartaSans(fontWeight: w);
+  }
 }
 
 class Brand extends StatelessWidget {

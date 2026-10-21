@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'auth_service.dart';
 import 'bets.dart';
+import 'film.dart';
 import 'settle.dart';
 import 'theme.dart';
 import 'tjk.dart';
@@ -69,6 +70,8 @@ class _PredictPageState extends State<PredictPage> {
   final List<_Sel> _sel = [];
   final Map<String, int> _legSel = {};
   bool _busy = false;
+  final Set<String> _detOpen = {}, _orOpen = {};
+  bool _idmBusy = false;
 
   bool get _admin => isAdminNotifier.value;
   bool _open(int r) => _admin || s.isPast || !s.raceDone(_city, r);
@@ -683,6 +686,183 @@ class _PredictPageState extends State<PredictPage> {
 
   Color _pill(double v) => v < 2 ? const Color(0xFF16A34A) : v < 5 ? const Color(0xFF2563EB) : v < 10 ? const Color(0xFFD97706) : v < 25 ? const Color(0xFFEA580C) : const Color(0xFFDC2626);
 
+  static const _takiAd = {
+    'KG': 'Kapalı gözlük takılacağını ifade eder.',
+    'K': 'Kulaklık takılacağını ifade eder.',
+    'SK': 'Ring mahalinden starta kadar kulaklık ile geleceğini ifade eder.',
+    'SKG': 'Ring mahalinden starta kadar kapalı gözlük ile geleceğini ifade eder.',
+    'DB': 'Dilinin bağlanacağını ifade eder.',
+    'GKR': 'Göz koruyucu takılacağını ifade eder.',
+  };
+
+  String _kgsTxt(String k) {
+    final n = int.tryParse(k.trim());
+    if (n == null) return k;
+    return n == 0 ? 'Bugün' : n == 1 ? 'Dün' : '$n gün önce';
+  }
+
+  Widget _takiChip(AppColors c, ({String k, String a}) t) => GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _toast('${t.k}: ${t.a.isNotEmpty ? t.a : (_takiAd[t.k.toUpperCase()] ?? 'Açıklama bulunamadı.')}'),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(color: c.ac.withAlpha(26), borderRadius: BorderRadius.circular(20), border: Border.all(color: c.ac.withAlpha(90))),
+          child: Text(t.k, style: jakarta(12.5, FontWeight.w800, c.ac)),
+        ),
+      );
+
+  Widget _s6Cell(AppColors c, String n, String pist) {
+    Color bg = c.sf2, fg = c.tx;
+    if (n == '1') {
+      bg = const Color(0xFFFBE7A1);
+      fg = const Color(0xFF8A6100);
+    } else if (n == '2') {
+      bg = const Color(0xFFE3E8F0);
+      fg = const Color(0xFF4B5A70);
+    } else if (n == '3') {
+      bg = const Color(0xFFF1D6BE);
+      fg = const Color(0xFF8A4B1F);
+    } else if (n == '0' || (int.tryParse(n) ?? 0) >= 6) {
+      bg = const Color(0xFFFBE4E8);
+      fg = const Color(0xFFD0304F);
+    }
+    final pc = pist == 'Ç' ? const Color(0xFF16A34A) : pist == 'K' ? const Color(0xFFB45309) : pist == 'S' ? const Color(0xFF2563EB) : c.mu;
+    return Padding(
+      padding: const EdgeInsets.only(right: 5),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        SizedBox(height: 16, child: Text(pist, style: jakarta(11.5, FontWeight.w800, pc))),
+        Container(
+          width: 26,
+          height: 26,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
+          child: Text(n, style: jakarta(13, FontWeight.w800, fg)),
+        ),
+      ]),
+    );
+  }
+
+  Widget _statCell(AppColors c, String lab, String val, {Color? col, bool right = true, bool bottom = true}) => Expanded(
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(2, 8, 8, 8),
+          decoration: BoxDecoration(border: Border(right: right ? BorderSide(color: c.ln) : BorderSide.none, bottom: bottom ? BorderSide(color: c.ln) : BorderSide.none)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(lab, style: jakarta(12, FontWeight.w600, c.mu)),
+            Text(val, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(17, FontWeight.w800, col ?? c.tx)),
+          ]),
+        ),
+      );
+
+  Future<void> _playIdman(Horse h) async {
+    if (_idmBusy) return;
+    _idmBusy = true;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(const SnackBar(content: Text('Video yükleniyor…'), duration: Duration(seconds: 8)));
+    try {
+      final mp4 = await getIdmanMp4(h, s.iso);
+      messenger.hideCurrentSnackBar();
+      if (!mounted) return;
+      if (mp4 == null) {
+        _toast('İdman videosu bulunamadı.');
+        return;
+      }
+      await showRaceFilm(context, url: mp4, race: _race, city: _city, dateLabel: '', rows: const [], title: h.name, subtitle: 'İdman videosu', badge: '${h.no}');
+    } catch (_) {
+      messenger.hideCurrentSnackBar();
+      _toast('İdman videosu açılamadı.');
+    } finally {
+      _idmBusy = false;
+    }
+  }
+
+  Widget _horseDetail(AppColors c, Horse h, String key) {
+    final sik = h.siklet == null ? '' : h.siklet!.toStringAsFixed(h.siklet! % 1 == 0 ? 0 : 1).replaceAll('.', ',');
+    final kgsN = int.tryParse(h.kgs.trim());
+    final kgsCol = kgsN == null ? null : (kgsN <= 14 ? const Color(0xFF16A34A) : (kgsN >= 36 ? const Color(0xFFEA580C) : null));
+    final cells = <(String, String, Color?)>[
+      if (h.yas.isNotEmpty) ('Yaş', h.yas, null),
+      if (sik.isNotEmpty) ('Sıklet', sik, null),
+      if (h.st.isNotEmpty) ('Kulvar', h.st, null),
+      if (h.hp != null) ('HP', '${h.hp}', const Color(0xFFD97706)),
+      if (h.kgs.isNotEmpty) ('Son koşu', _kgsTxt(h.kgs), kgsCol),
+      if (h.s20.isNotEmpty) ('S20', h.s20, null),
+    ];
+    final rows = <Widget>[];
+    for (var i = 0; i < cells.length; i += 3) {
+      final part = cells.sublist(i, (i + 3).clamp(0, cells.length));
+      final last = i + 3 >= cells.length;
+      rows.add(Row(children: [
+        for (var j = 0; j < 3; j++)
+          j < part.length
+              ? _statCell(c, part[j].$1, part[j].$2, col: part[j].$3, right: j < 2, bottom: !last)
+              : const Expanded(child: SizedBox()),
+      ]));
+    }
+    final eid = RegExp(r'\d{1,2}\.\d{2}\.\d{2}').firstMatch(h.eid)?.group(0) ?? '';
+    final ek = s.races(_city).where((r) => r.no == _race).expand((r) => r.atlar).where((x) => x.no != h.no && !x.kosmaz && h.sahip.isNotEmpty && x.sahip.toUpperCase() == h.sahip.toUpperCase()).toList();
+    final orOpen = _orOpen.contains(key);
+    Widget line(String lab, String val) => val.isEmpty
+        ? const SizedBox.shrink()
+        : Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(lab, style: jakarta(11.5, FontWeight.w700, c.mu)),
+              Text(val, style: jakarta(14, FontWeight.w700, c.tx)),
+            ]),
+          );
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (rows.isNotEmpty) Container(decoration: BoxDecoration(border: Border(top: BorderSide(color: c.ln))), child: Column(children: rows)),
+      if (eid.isNotEmpty)
+        Container(
+          margin: const EdgeInsets.only(top: 10),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: c.sf2, borderRadius: BorderRadius.circular(14)),
+          child: Row(children: [
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('En iyi derece', style: jakarta(12, FontWeight.w600, c.mu)),
+              Text(eid, style: jakarta(17, FontWeight.w800, c.tx)),
+            ])),
+          ]),
+        ),
+      if (h.idmK.isNotEmpty)
+        GestureDetector(
+          onTap: () => _playIdman(h),
+          child: Container(
+            margin: const EdgeInsets.only(top: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(color: c.red.withAlpha(24), borderRadius: BorderRadius.circular(16)),
+            child: Row(children: [
+              Container(width: 40, height: 40, decoration: BoxDecoration(color: c.red, shape: BoxShape.circle), child: const Icon(Icons.play_arrow, color: Colors.white)),
+              const SizedBox(width: 12),
+              Expanded(child: Text('İdman videosunu izle', style: jakarta(16, FontWeight.w800, c.red))),
+              Text('İzle ›', style: jakarta(14, FontWeight.w800, c.red)),
+            ]),
+          ),
+        ),
+      if (ek.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: Text('Ekürü: ${ek.map((x) => '${x.no} ${x.name}').join(' · ')}', style: jakarta(13, FontWeight.w700, c.mu)),
+        ),
+      if (h.orijin.isNotEmpty || h.sahip.isNotEmpty || h.antrenor.isNotEmpty)
+        GestureDetector(
+          onTap: () => setState(() => orOpen ? _orOpen.remove(key) : _orOpen.add(key)),
+          child: Container(
+            margin: const EdgeInsets.only(top: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(color: c.sf2, borderRadius: BorderRadius.circular(14)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Expanded(child: Text('Orijin, sahip, antrenör', style: jakarta(14.5, FontWeight.w700, c.mu))),
+                Icon(orOpen ? Icons.arrow_drop_up : Icons.arrow_drop_down, color: c.mu),
+              ]),
+              if (orOpen) ...[line('Orijin', h.orijin), line('Sahip', h.sahip), line('Antrenör', h.antrenor)],
+            ]),
+          ),
+        ),
+    ]);
+  }
+
   Widget _horseCard(AppColors c, Horse h) {
     final slot = _t.mode == 'legs' ? 0 : (_t.vir ? _sel.indexWhere((x) => x.no == h.no) : _slot);
     final on = _t.vir ? _sel.any((x) => x.no == h.no && x.r == _race) : _sel.any((x) => x.r == _race && x.slot == slot && x.no == h.no);
@@ -723,27 +903,46 @@ class _PredictPageState extends State<PredictPage> {
                 child: on ? (order > 0 ? Text('$order', style: jakarta(14, FontWeight.w800, c.on)) : Icon(Icons.check, color: c.on, size: 20)) : Icon(Icons.add, color: c.ac),
               ),
             ]),
-            if (h.son6.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Row(children: [
-                Text('SON 6', style: jakarta(11.5, FontWeight.w800, c.mu)),
-                const SizedBox(width: 8),
-                for (final x in h.son6)
-                  Container(
-                    margin: const EdgeInsets.only(right: 5),
-                    width: 26,
-                    height: 26,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(color: c.sf2, borderRadius: BorderRadius.circular(8)),
-                    child: Text(x, style: jakarta(13, FontWeight.w800, c.tx)),
+            if (h.son6.isNotEmpty || h.taki.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                if (h.son6.isNotEmpty) ...[
+                  Padding(padding: const EdgeInsets.only(bottom: 5), child: Text('SON 6', style: jakarta(11.5, FontWeight.w800, c.mu))),
+                  const SizedBox(width: 8),
+                  for (var i = 0; i < h.son6.length; i++) _s6Cell(c, h.son6[i], i < h.son6p.length ? h.son6p[i] : ''),
+                ],
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Wrap(alignment: WrapAlignment.end, spacing: 6, runSpacing: 4, children: [for (final t in h.taki) _takiChip(c, t)]),
                   ),
+                ),
               ]),
             ],
-            const SizedBox(height: 6),
-            Text(
-              [if (h.yas.isNotEmpty) h.yas, if (h.siklet != null) '${h.siklet!.toStringAsFixed(h.siklet! % 1 == 0 ? 0 : 1)} kg', if (h.hp != null) 'HP ${h.hp}', if (h.kgs.isNotEmpty) '${h.kgs} gün önce'].join(' · '),
-              style: jakarta(12.5, FontWeight.w600, c.mu),
-            ),
+            const SizedBox(height: 8),
+            Builder(builder: (_) {
+              final key = '$_city|$_race|${h.no}';
+              final open = _detOpen.contains(key);
+              final sum = [if (h.yas.isNotEmpty) h.yas, if (h.siklet != null) '${h.siklet!.toStringAsFixed(h.siklet! % 1 == 0 ? 0 : 1)} kg', if (h.hp != null) 'HP ${h.hp}', if (h.kgs.isNotEmpty) _kgsTxt(h.kgs)].join(' · ');
+              return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Expanded(child: Text(open ? 'Detay bilgileri' : sum, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(13, FontWeight.w600, c.mu))),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => setState(() => open ? _detOpen.remove(key) : _detOpen.add(key)),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                      child: Text('Detay ${open ? '▴' : '▾'}', style: jakarta(14, FontWeight.w800, c.ac)),
+                    ),
+                  ),
+                ]),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 180),
+                  alignment: Alignment.topCenter,
+                  child: open ? _horseDetail(c, h, key) : const SizedBox(width: double.infinity),
+                ),
+              ]);
+            }),
           ]),
         ),
       ),
