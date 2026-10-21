@@ -59,7 +59,7 @@ class GlideScrollPhysics extends ClampingScrollPhysics {
   @override
   GlideScrollPhysics applyTo(ScrollPhysics? ancestor) => GlideScrollPhysics(parent: buildParent(ancestor));
   @override
-  Simulation? createBallisticSimulation(ScrollMetrics position, double velocity) => super.createBallisticSimulation(position, velocity * 1.5);
+  Simulation? createBallisticSimulation(ScrollMetrics position, double velocity) => super.createBallisticSimulation(position, velocity);
 }
 
 class NoBounceScroll extends MaterialScrollBehavior {
