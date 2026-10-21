@@ -310,62 +310,62 @@ class _PredictPageState extends State<PredictPage> {
     if (cnt < tahminLimit) return null;
     return t1 ? '$r. koşu için $f en fazla $tahminLimit kez oynanabilir.' : '${c['city']} için bugün en fazla $tahminLimit adet ${c['ord'] != null ? '${c['ord']}. ' : ''}$f oynanabilir.';
   }
+
   Future<Map<String, dynamic>?> _check() async {
-  final c = _build();
-  if (c == null) return null;
-  if (s.isPast && !_admin) {
-    _toast('Geçmiş günlere kupon yapılamaz.');
-    return null;
-  }
-  final m = typeMusait(_t, _city, admin: _admin, picked: _legSel['${_t.k}|$_city']);
-  if (!m.ok) {
-    _toast('${m.why} · bu kupon artık oynanamaz.');
-    return null;
-  }
-  if (_t.mode == 'race' && !oyunMusait(_t, _city, (c['legs'] as List)[0]['r'] as int)) {
-    _toast('${_t.name} ${(c['legs'] as List)[0]['r']}. koşuda oynanmıyor.');
-    return null;
-  }
-  final lm = await _limit(c);
-  if (lm != null) {
-    _toast(lm);
-    return null;
-  }
-  final legs = (c['legs'] as List).cast<Map>();
-  final slotted = legs.any((l) => l['slot'] != null);
-  if (_t.tabs > 0) {
-    final emp = List.generate(_t.tabs, (i) => i).where((i) => _picks(legs[0]['r'] as int, i).isEmpty).toList();
-    if (emp.isNotEmpty) {
-      _toast('Eksik sıra: ${emp.map((i) => '${i + 1}. At').join(', ')}');
+    final c = _build();
+    if (c == null) return null;
+    if (s.isPast && !_admin) {
+      _toast('Geçmiş günlere kupon yapılamaz.');
       return null;
     }
+    final m = typeMusait(_t, _city, admin: _admin, picked: _legSel['${_t.k}|$_city']);
+    if (!m.ok) {
+      _toast('${m.why} · bu kupon artık oynanamaz.');
+      return null;
+    }
+    if (_t.mode == 'race' && !oyunMusait(_t, _city, (c['legs'] as List)[0]['r'] as int)) {
+      _toast('${_t.name} ${(c['legs'] as List)[0]['r']}. koşuda oynanmıyor.');
+      return null;
+    }
+    final lm = await _limit(c);
+    if (lm != null) {
+      _toast(lm);
+      return null;
+    }
+    final legs = (c['legs'] as List).cast<Map>();
+    final slotted = legs.any((l) => l['slot'] != null);
+    if (_t.tabs > 0) {
+      final emp = List.generate(_t.tabs, (i) => i).where((i) => _picks(legs[0]['r'] as int, i).isEmpty).toList();
+      if (emp.isNotEmpty) {
+        _toast('Eksik sıra: ${emp.map((i) => '${i + 1}. At').join(', ')}');
+        return null;
+      }
+    }
+    final miss = legs.where((l) => (l['picks'] as List).isEmpty).toList();
+    if (miss.isNotEmpty) {
+      _toast(slotted ? 'Eksik sıra: ${miss.map((l) => '${(l['slot'] as int) + 1}. At').join(', ')}' : 'Eksik ayak: ${miss.map((l) => '${l['r']}.').join(', ')} koşu');
+      return null;
+    }
+    if (c['vir'] != null && legs.length < (c['vir'] as int)) {
+      _toast('En az ${c['vir']} at seç (şu an ${legs.length}).');
+      return null;
+    }
+    if (kolon(c) < 1) {
+      _toast((slotted || _t.tabs > 0) ? 'Her sırada farklı bir at olmalı.' : 'Seçimini tamamla: en az ${_t.rule == 'any4' ? 4 : 2} at seç.');
+      return null;
+    }
+    final tut = couponCost(c);
+    if (tut < asgari) {
+      _toast('Asgari kupon bedeli ${money(asgari)} · şu an ${money(tut)}, misli artır.');
+      return null;
+    }
+    if (limitliMi(c['type'].toString()) && !_admin && tut > altiliMax) {
+      _toast("${c['type']} kuponu en fazla ${money(altiliMax)} olabilir · şu an ${money(tut)}. Seçimini azalt.");
+      return null;
+    }
+    return c;
   }
-  final miss = legs.where((l) => (l['picks'] as List).isEmpty).toList();
-  if (miss.isNotEmpty) {
-    _toast(slotted ? 'Eksik sıra: ${miss.map((l) => '${(l['slot'] as int) + 1}. At').join(', ')}' : 'Eksik ayak: ${miss.map((l) => '${l['r']}.').join(', ')} koşu');
-    return null;
-  }
-  if (c['vir'] != null && legs.length < (c['vir'] as int)) {
-    _toast('En az ${c['vir']} at seç (şu an ${legs.length}).');
-    return null;
-  }
-  if (kolon(c) < 1) {
-    _toast((slotted || _t.tabs > 0) ? 'Her sırada farklı bir at olmalı.' : 'Seçimini tamamla: en az ${_t.rule == 'any4' ? 4 : 2} at seç.');
-    return null;
-  }
-  final tut = couponCost(c);
-  if (tut < asgari) {
-    _toast('Asgari kupon bedeli ${money(asgari)} · şu an ${money(tut)}, misli artır.');
-    return null;
-  }
-  if (limitliMi(c['type'].toString()) && !_admin && tut > altiliMax) {
-    _toast("${c['type']} kuponu en fazla ${money(altiliMax)} olabilir · şu an ${money(tut)}. Seçimini azalt.");
-    return null;
-  }
-  return c;
-}
-
-Future<void> _share() async {
+  Future<void> _share() async {
   if (_busy) return;
   final me = profileNotifier.value;
   if (me == null) return;
@@ -380,17 +380,17 @@ Future<void> _share() async {
         final col = AppColors.of(ctx);
         return AlertDialog(
           backgroundColor: col.sf,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-          title: Text('Kuponu paylaş', style: jakarta(17, FontWeight.w800, col.tx)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text('Kuponu paylaş', style: jakarta(15, FontWeight.w800, col.tx)),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text('${c['city']} · ${c['type']} · ${kolon(c)} kolon · ${money(couponCost(c))}', style: jakarta(13.5, FontWeight.w600, col.mu)),
-            const SizedBox(height: 10),
+            Text('${c['city']} · ${c['type']} · ${kolon(c)} kolon · ${money(couponCost(c))}', style: jakarta(12, FontWeight.w600, col.mu)),
+            const SizedBox(height: 8),
             TextField(controller: ctl, maxLength: 300, maxLines: 3, decoration: const InputDecoration(hintText: 'Yorum ekle (isteğe bağlı)', border: OutlineInputBorder())),
-            Text('Paylaşılan kupon silinemez.', style: jakarta(12, FontWeight.w600, col.red)),
+            Text('Paylaşılan kupon silinemez.', style: jakarta(11, FontWeight.w600, col.red)),
           ]),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Vazgeç', style: jakarta(14, FontWeight.w700, col.mu))),
-            TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text('Paylaş', style: jakarta(14, FontWeight.w800, col.ac))),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Vazgeç', style: jakarta(13, FontWeight.w700, col.mu))),
+            TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text('Paylaş', style: jakarta(13, FontWeight.w800, col.ac))),
           ],
         );
       },
@@ -443,45 +443,46 @@ Widget build(BuildContext context) {
     return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
       CircularProgressIndicator(color: c.ac),
       const SizedBox(height: 12),
-      Text('Bülten yükleniyor…', style: jakarta(14, FontWeight.w600, c.mu)),
+      Text('Bülten yükleniyor…', style: jakarta(13, FontWeight.w600, c.mu)),
     ]));
   }
   if (s.cities.isEmpty) {
-    return ListView(padding: const EdgeInsets.all(16), children: [
+    return ListView(padding: const EdgeInsets.all(12), children: [
       _dateBar(c),
-      const SizedBox(height: 40),
-      Center(child: Text(s.error ?? 'Program alınamadı.', textAlign: TextAlign.center, style: jakarta(14, FontWeight.w600, c.mu))),
+      const SizedBox(height: 30),
+      Center(child: Text(s.error ?? 'Program alınamadı.', textAlign: TextAlign.center, style: jakarta(13, FontWeight.w600, c.mu))),
       const SizedBox(height: 12),
-      Center(child: FilledButton(onPressed: () => s.load(s.iso), style: FilledButton.styleFrom(backgroundColor: c.ac), child: Text('Tekrar dene', style: jakarta(14, FontWeight.w800, c.on)))),
+      Center(child: FilledButton(onPressed: () => s.load(s.iso), style: FilledButton.styleFrom(backgroundColor: c.ac), child: Text('Tekrar dene', style: jakarta(13, FontWeight.w800, c.on)))),
     ]);
   }
   final race = s.race(_city, _race);
   final lr = _lr;
   final st = _t.mode == 'legs' ? legStarts(_t, _city) : <int>[];
+  
   return Column(children: [
     Expanded(
-      child: ListView(padding: const EdgeInsets.fromLTRB(16, 10, 16, 16), children: [
+      child: ListView(padding: const EdgeInsets.fromLTRB(12, 8, 12, 12), children: [
         _dateBar(c),
-        const SizedBox(height: 10),
-        _typeBox(c),
         const SizedBox(height: 8),
+        _typeBox(c),
+        const SizedBox(height: 6),
         Row(children: [
           Expanded(child: Text('TJK · ${s.cities.length} hipodrom · ${s.cities.fold<int>(0, (a, b) => a + s.races(b.name).length)} koşu',
-              style: jakarta(12, FontWeight.w600, c.mu))),
-          GestureDetector(onTap: () => s.load(s.iso), child: Text('Yenile', style: jakarta(13, FontWeight.w800, c.ac))),
-          const SizedBox(width: 14),
+              style: jakarta(10.5, FontWeight.w600, c.mu))),
+          GestureDetector(onTap: () => s.load(s.iso), child: Text('Yenile', style: jakarta(11.5, FontWeight.w800, c.ac))),
+          const SizedBox(width: 10),
           GestureDetector(
             onTap: () => launchUrl(Uri.parse('https://www.youtube.com/watch?v=I1FgwiDqpS8'), mode: LaunchMode.externalApplication),
-            child: Text('● Canlı yayın', style: jakarta(13, FontWeight.w800, c.red)),
+            child: Text('● Canlı yayın', style: jakarta(11.5, FontWeight.w800, c.red)),
           ),
         ]),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(children: [for (final ct in s.cities) _chip(c, ct.name, ct.name == _city, () => _setCityTo(ct.name))]),
         ),
         if (st.length > 1) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(children: [
@@ -500,43 +501,44 @@ Widget build(BuildContext context) {
             ]),
           ),
         ],
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(children: [
             for (var i = 0; i < lr.length; i++) _legTab(c, i, lr[i]),
           ]),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         if (race != null) _raceCard(c, race),
         if (_t.mode == 'race' && (_t.slots > 0 || _t.tabs > 0) && !_t.vir) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Row(children: [
             for (var i = 0; i < (_t.slots > 0 ? _t.slots : _t.tabs); i++)
               Padding(
-                padding: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.only(right: 6),
                 child: _chip(c, '${i + 1}. At${_picks(_race, i).isNotEmpty ? ' (${_picks(_race, i).length})' : ''}', _slot == i, () => setState(() => _slot = i)),
               ),
           ]),
         ],
-        if (_t.hint.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_t.hint, style: jakarta(12.5, FontWeight.w500, c.mu))),
-        const SizedBox(height: 10),
+        if (_t.hint.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Text(_t.hint, style: jakarta(11, FontWeight.w500, c.mu))),
+        const SizedBox(height: 8),
         if (race != null) for (final h in race.atlar) _horseCard(c, h),
       ]),
     ),
     _couponBar(c),
   ]);
 }
-  Widget _dateBar(AppColors c) {
+
+Widget _dateBar(AppColors c) {
   return Container(
-    padding: const EdgeInsets.all(8),
-    decoration: BoxDecoration(color: c.sf, borderRadius: BorderRadius.circular(20), border: Border.all(color: c.ln)),
+    padding: const EdgeInsets.all(6),
+    decoration: BoxDecoration(color: c.sf, borderRadius: BorderRadius.circular(16), border: Border.all(color: c.ln)),
     child: Row(children: [
       _arrow(c, Icons.chevron_left, () => _day(-1)),
       Expanded(
         child: Column(children: [
-          if (isoTag(s.iso).isNotEmpty) Text(isoTag(s.iso), style: jakarta(11.5, FontWeight.w800, c.ac)),
-          Text(isoLabel(s.iso), style: jakarta(17, FontWeight.w800, c.tx)),
+          if (isoTag(s.iso).isNotEmpty) Text(isoTag(s.iso), style: jakarta(10, FontWeight.w800, c.ac)),
+          Text(isoLabel(s.iso), style: jakarta(14.5, FontWeight.w800, c.tx)),
         ]),
       ),
       _arrow(c, Icons.chevron_right, () => _day(1)),
@@ -557,17 +559,17 @@ void _day(int d) {
 
 Widget _arrow(AppColors c, IconData ic, VoidCallback f) => GestureDetector(
       onTap: f,
-      child: Container(width: 40, height: 40, decoration: BoxDecoration(color: c.sf2, borderRadius: BorderRadius.circular(14)), child: Icon(ic, color: c.tx)),
+      child: Container(width: 34, height: 34, decoration: BoxDecoration(color: c.sf2, borderRadius: BorderRadius.circular(12)), child: Icon(ic, color: c.tx, size: 18)),
     );
 
 Widget _chip(AppColors c, String t, bool on, VoidCallback f) => Padding(
-      padding: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.only(right: 6),
       child: GestureDetector(
         onTap: f,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-          decoration: BoxDecoration(color: on ? c.ac : c.sf, borderRadius: BorderRadius.circular(16), border: Border.all(color: on ? c.ac : c.ln, width: 1.5)),
-          child: Text(t, style: jakarta(14, FontWeight.w800, on ? c.on : c.tx)),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(color: on ? c.ac : c.sf, borderRadius: BorderRadius.circular(12), border: Border.all(color: on ? c.ac : c.ln, width: 1)),
+          child: Text(t, style: jakarta(12, FontWeight.w800, on ? c.on : c.tx)),
         ),
       ),
     );
@@ -577,7 +579,7 @@ Widget _legTab(AppColors c, int i, int r) {
   final has = _sel.any((x) => x.r == r);
   final legs = _t.mode == 'legs';
   return Padding(
-    padding: const EdgeInsets.only(right: 8),
+    padding: const EdgeInsets.only(right: 6),
     child: GestureDetector(
       onTap: () => setState(() {
         _race = r;
@@ -588,12 +590,12 @@ Widget _legTab(AppColors c, int i, int r) {
         _slot = 0;
       }),
       child: Container(
-        constraints: const BoxConstraints(minWidth: 74),
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-        decoration: BoxDecoration(color: on ? c.ac : c.sf, borderRadius: BorderRadius.circular(16), border: Border.all(color: on ? c.ac : c.ln, width: 1.5)),
+        constraints: const BoxConstraints(minWidth: 60),
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+        decoration: BoxDecoration(color: on ? c.ac : c.sf, borderRadius: BorderRadius.circular(12), border: Border.all(color: on ? c.ac : c.ln, width: 1)),
         child: Column(children: [
-          Text('${has && legs ? '✓ ' : ''}${legs ? '${i + 1}. Ayak' : '$r. Koşu'}', style: jakarta(14, FontWeight.w800, on ? c.on : c.tx)),
-          Text(legs ? '$r. Koşu' : _saat(r), style: jakarta(11.5, FontWeight.w600, on ? c.on : c.mu)),
+          Text('${has && legs ? '✓ ' : ''}${legs ? '${i + 1}. Ayak' : '$r. Koşu'}', style: jakarta(12, FontWeight.w800, on ? c.on : c.tx)),
+          Text(legs ? '$r. Koşu' : _saat(r), style: jakarta(10, FontWeight.w600, on ? c.on : c.mu)),
         ]),
       ),
     ),
@@ -604,20 +606,25 @@ Widget _typeBox(AppColors c) {
   final st = _t.mode == 'legs' ? legStarts(_t, _city) : <int>[];
   final ord = (st.length > 1 && _lr.isNotEmpty && st.contains(_lr.first)) ? '${st.indexOf(_lr.first) + 1}. ' : '';
   return Container(
-    padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
-    decoration: BoxDecoration(color: c.ac.withAlpha(20), borderRadius: BorderRadius.circular(20), border: Border.all(color: c.ac)),
+    padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+    decoration: BoxDecoration(color: c.ac.withAlpha(20), borderRadius: BorderRadius.circular(16), border: Border.all(color: c.ac)),
     child: Row(children: [
       Expanded(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('BAHİS TÜRÜ', style: jakarta(11, FontWeight.w800, c.ac)),
-          Text('$ord${_t.name}', style: jakarta(20, FontWeight.w800, c.tx)),
+          Text('BAHİS TÜRÜ', style: jakarta(9.5, FontWeight.w800, c.ac)),
+          Text('$ord${_t.name}', style: jakarta(16, FontWeight.w800, c.tx)),
         ]),
       ),
       FilledButton.icon(
         onPressed: _pickType,
-        style: FilledButton.styleFrom(backgroundColor: c.ac, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-        icon: Icon(Icons.keyboard_arrow_down, color: c.on),
-        label: Text('Değiştir', style: jakarta(14, FontWeight.w800, c.on)),
+        style: FilledButton.styleFrom(
+          backgroundColor: c.ac, 
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          minimumSize: Size.zero,
+        ),
+        icon: Icon(Icons.keyboard_arrow_down, color: c.on, size: 16),
+        label: Text('Değiştir', style: jakarta(12, FontWeight.w800, c.on)),
       ),
     ]),
   );
@@ -629,19 +636,19 @@ void _pickType() {
     context: context,
     isScrollControlled: true,
     backgroundColor: c.bg,
-    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(26))),
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
     builder: (ctx) {
       final list = kTypes.where((t) {
         if (t.si == 1) return legStarts(t, _city).length > 1;
         return true;
       }).toList();
       return SizedBox(
-        height: MediaQuery.of(ctx).size.height * 0.75,
+        height: MediaQuery.of(ctx).size.height * 0.7,
         child: Column(children: [
-          const SizedBox(height: 14),
-          Text('Bahis türü seç', style: jakarta(17, FontWeight.w800, c.tx)),
+          const SizedBox(height: 12),
+          Text('Bahis türü seç', style: jakarta(15, FontWeight.w800, c.tx)),
           Expanded(
-            child: ListView(padding: const EdgeInsets.all(12), children: [
+            child: ListView(padding: const EdgeInsets.all(10), children: [
               for (final t in list)
                 Builder(builder: (_) {
                   final m = typeMusait(t, _city, admin: _admin);
@@ -656,17 +663,17 @@ void _pickType() {
                             }
                           : () => _toast('${t.name}: ${m.why}'),
                       child: Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(color: on ? c.ac.withAlpha(24) : c.sf, borderRadius: BorderRadius.circular(16), border: Border.all(color: on ? c.ac : c.ln)),
+                        margin: const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(color: on ? c.ac.withAlpha(24) : c.sf, borderRadius: BorderRadius.circular(12), border: Border.all(color: on ? c.ac : c.ln)),
                         child: Row(children: [
                           Expanded(
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text('${t.si == 1 ? '2. ' : t.si == 0 && legStarts(t, _city).length > 1 ? '1. ' : ''}${t.name}', style: jakarta(15, FontWeight.w800, c.tx)),
-                              Text(m.ok ? (t.desc.isNotEmpty ? t.desc : t.sub) : m.why, style: jakarta(12.5, FontWeight.w500, c.mu)),
+                              Text('${t.si == 1 ? '2. ' : t.si == 0 && legStarts(t, _city).length > 1 ? '1. ' : ''}${t.name}', style: jakarta(13, FontWeight.w800, c.tx)),
+                              Text(m.ok ? (t.desc.isNotEmpty ? t.desc : t.sub) : m.why, style: jakarta(11, FontWeight.w500, c.mu)),
                             ]),
                           ),
-                          Text(money(birimFiyat(t.name, _city)), style: jakarta(12.5, FontWeight.w700, c.ac)),
+                          Text(money(birimFiyat(t.name, _city)), style: jakarta(11, FontWeight.w700, c.ac)),
                         ]),
                       ),
                     ),
@@ -684,19 +691,18 @@ Widget _raceCard(AppColors c, Race r) {
   final done = !_open(r.no);
   return Container(
     width: double.infinity,
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(color: c.ac.withAlpha(14), borderRadius: BorderRadius.circular(20), border: Border.all(color: c.ln)),
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(color: c.ac.withAlpha(14), borderRadius: BorderRadius.circular(16), border: Border.all(color: c.ln)),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('$_city ${r.no}. Koşu • ${r.saat}', style: jakarta(18, FontWeight.w800, c.tx)),
-      if (r.bilgi.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text(r.bilgi, style: jakarta(13, FontWeight.w500, c.mu))),
-      Text('${r.atlar.length} at', style: jakarta(13, FontWeight.w500, c.mu)),
+      Text('$_city ${r.no}. Koşu • ${r.saat}', style: jakarta(15, FontWeight.w800, c.tx)),
+      if (r.bilgi.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text(r.bilgi, style: jakarta(11, FontWeight.w500, c.mu))),
+      Text('${r.atlar.length} at', style: jakarta(11, FontWeight.w500, c.mu)),
       if (done)
-        Padding(padding: const EdgeInsets.only(top: 6), child: Text('Koşu başladı / bitti · seçime kapalı', style: jakarta(12.5, FontWeight.w800, c.red))),
+        Padding(padding: const EdgeInsets.only(top: 4), child: Text('Koşu başladı / bitti · seçime kapalı', style: jakarta(10.5, FontWeight.w800, c.red))),
     ]),
   );
 }
-
-Color _pill(double v) => v < 2 ? const Color(0xFF16A34A) : v < 5 ? const Color(0xFF2563EB) : v < 10 ? const Color(0xFFD97706) : v < 25 ? const Color(0xFFEA580C) : const Color(0xFFDC2626);
+  Color _pill(double v) => v < 2 ? const Color(0xFF16A34A) : v < 5 ? const Color(0xFF2563EB) : v < 10 ? const Color(0xFFD97706) : v < 25 ? const Color(0xFFEA580C) : const Color(0xFFDC2626);
 
 String _kgsTxt(String k) {
   final n = int.tryParse(k.trim());
@@ -706,11 +712,11 @@ String _kgsTxt(String k) {
 
 Widget _statCell(AppColors c, String lab, String val, {Color? col, bool right = true, bool bottom = true}) => Expanded(
       child: Container(
-        padding: const EdgeInsets.fromLTRB(2, 8, 8, 8),
+        padding: const EdgeInsets.fromLTRB(0, 6, 6, 6),
         decoration: BoxDecoration(border: Border(right: right ? BorderSide(color: c.ln) : BorderSide.none, bottom: bottom ? BorderSide(color: c.ln) : BorderSide.none)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(lab, style: jakarta(12, FontWeight.w600, c.mu)),
-          Text(val, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(17, FontWeight.w800, col ?? c.tx)),
+          Text(lab, style: jakarta(10.5, FontWeight.w600, c.mu)),
+          Text(val, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(14, FontWeight.w800, col ?? c.tx)),
         ]),
       ),
     );
@@ -779,236 +785,236 @@ Widget _horseDetail(AppColors c, Horse h, String key) {
   Widget line(String lab, String val) => val.isEmpty
       ? const SizedBox.shrink()
       : Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(lab, style: jakarta(11.5, FontWeight.w700, c.mu)),
-            Text(val, style: jakarta(14, FontWeight.w700, c.tx)),
-          ]),
+          padding: const EdgeInsets.only(top: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(width: 60, child: Text(lab, style: jakarta(10, FontWeight.w700, c.mu))),
+              Expanded(child: Text(val, style: jakarta(12, FontWeight.w700, c.tx))),
+            ],
+          ),
         );
+
+  Widget vidBtn(String url, String title) => GestureDetector(
+    onTap: () => _playVideo(url, title, h.name),
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(color: const Color(0xFF111827), borderRadius: BorderRadius.circular(16)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        const Icon(Icons.play_arrow, color: Colors.white, size: 10),
+        const SizedBox(width: 4),
+        Text('Videoyu izle', style: jakarta(10, FontWeight.w700, Colors.white)),
+      ]),
+    ),
+  );
 
   return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     if (rows.isNotEmpty) Container(decoration: BoxDecoration(border: Border(top: BorderSide(color: c.ln))), child: Column(children: rows)),
-          if (h.idmK.isNotEmpty)
-        GestureDetector(
-          onTap: () => _playIdman(h),
-          child: Container(
-            margin: const EdgeInsets.only(top: 10),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(color: c.red.withAlpha(24), borderRadius: BorderRadius.circular(16)),
-            child: Row(children: [
-              Container(width: 40, height: 40, decoration: BoxDecoration(color: c.red, shape: BoxShape.circle), child: const Icon(Icons.play_arrow, color: Colors.white)),
-              const SizedBox(width: 12),
-              Expanded(child: Text('İdman videosunu izle', style: jakarta(16, FontWeight.w800, c.red))),
-              Text('İzle ›', style: jakarta(14, FontWeight.w800, c.red)),
-            ]),
-          ),
+    
+    if (h.idmK.isNotEmpty)
+      GestureDetector(
+        onTap: () => _playIdman(h),
+        child: Container(
+          margin: const EdgeInsets.only(top: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(color: c.red.withAlpha(24), borderRadius: BorderRadius.circular(10)),
+          child: Row(children: [
+            Container(width: 26, height: 26, decoration: BoxDecoration(color: c.red, shape: BoxShape.circle), child: const Icon(Icons.play_arrow, color: Colors.white, size: 16)),
+            const SizedBox(width: 8),
+            Expanded(child: Text('İdman videosunu izle', style: jakarta(12, FontWeight.w800, c.red))),
+            Text('İzle ›', style: jakarta(10.5, FontWeight.w800, c.red)),
+          ]),
         ),
+      ),
 
-      FutureBuilder<AtHist>(
-        future: getAtHist(h.atId),
-        builder: (context, snapshot) {
-          final yaris = snapshot.data?.yaris;
-          if (yaris == null) return const SizedBox.shrink();
-          return Container(
-            margin: const EdgeInsets.only(top: 10),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: const Color(0xFF7C3AED).withAlpha(24), borderRadius: BorderRadius.circular(16)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(color: const Color(0xFF7C3AED), borderRadius: BorderRadius.circular(8)),
-                  child: Text(yaris.no, style: jakarta(13, FontWeight.w800, Colors.white)),
-                ),
-                const SizedBox(width: 10),
-                Text('Son yarış · ${yaris.k}', style: jakarta(13, FontWeight.w800, const Color(0xFF7C3AED))),
-                const Spacer(),
-                Text(yaris.y, style: jakarta(12.5, FontWeight.w600, const Color(0xFF7C3AED))),
+    FutureBuilder<AtHist>(
+      future: getAtHist(h.atId),
+      builder: (context, snapshot) {
+        final yaris = snapshot.data?.yaris;
+        if (yaris == null) return const SizedBox.shrink();
+        return Container(
+          margin: const EdgeInsets.only(top: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(color: const Color(0xFF7C3AED).withAlpha(20), borderRadius: BorderRadius.circular(10)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(color: const Color(0xFF7C3AED), borderRadius: BorderRadius.circular(4)),
+                child: Text(yaris.no, style: jakarta(9, FontWeight.w800, Colors.white)),
+              ),
+              const SizedBox(width: 6),
+              Expanded(child: Text('Son yarış · ${yaris.k}', maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(10, FontWeight.w800, const Color(0xFF7C3AED)))),
+              const SizedBox(width: 6),
+              Text(yaris.y, style: jakarta(9.5, FontWeight.w600, const Color(0xFF7C3AED))),
+            ]),
+            const SizedBox(height: 4),
+            Row(children: [
+              Expanded(child: Text(yaris.d, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(13, FontWeight.w800, const Color(0xFF7C3AED)))),
+              if (yaris.v.isNotEmpty) vidBtn(yaris.v, "Son Yarış"),
+            ]),
+          ]),
+        );
+      }
+    ),
+
+    if (eid.isNotEmpty)
+      Container(
+        margin: const EdgeInsets.only(top: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(color: const Color(0xFF16A34A).withAlpha(20), borderRadius: BorderRadius.circular(10)),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('En iyi derece', style: jakarta(10, FontWeight.w600, const Color(0xFF16A34A))),
+                Text(eid, style: jakarta(13, FontWeight.w800, const Color(0xFF16A34A))),
               ]),
-              const SizedBox(height: 6),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(yaris.d, style: jakarta(17, FontWeight.w800, const Color(0xFF7C3AED))),
-                  if (yaris.v.isNotEmpty)
-                    GestureDetector(
-                      onTap: () => _playVideo(yaris.v, "Son Yarış", h.name),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(color: const Color(0xFF111827), borderRadius: BorderRadius.circular(20)),
-                        child: Row(children: [
-                          const Icon(Icons.play_arrow, color: Colors.white, size: 14),
-                          const SizedBox(width: 4),
-                          Text('Videoyu izle', style: jakarta(12, FontWeight.w700, Colors.white)),
-                        ]),
-                      ),
-                    ),
-                ],
-              ),
-            ]),
-          );
-        }
+            ),
+            if (eidSub.isNotEmpty)
+              Flexible(child: Text(eidSub, textAlign: TextAlign.right, style: jakarta(9.5, FontWeight.w700, const Color(0xFF16A34A)))),
+          ],
+        ),
       ),
 
-      if (eid.isNotEmpty)
-        Container(
-          margin: const EdgeInsets.only(top: 10),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: const Color(0xFF16A34A).withAlpha(24), borderRadius: BorderRadius.circular(16)),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('En iyi derece', style: jakarta(12, FontWeight.w600, const Color(0xFF16A34A))),
-                  Text(eid, style: jakarta(17, FontWeight.w800, const Color(0xFF16A34A))),
-                ]),
-              ),
-              if (eidSub.isNotEmpty)
-                Text(eidSub, style: jakarta(12.5, FontWeight.w700, const Color(0xFF16A34A))),
-            ],
-          ),
-        ),
+    FutureBuilder<AtHist>(
+      future: getAtHist(h.atId),
+      builder: (context, snapshot) {
+        final gal = snapshot.data?.galibiyet;
+        if (gal == null) return const SizedBox.shrink();
+        return Container(
+          margin: const EdgeInsets.only(top: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(color: const Color(0xFFD97706).withAlpha(20), borderRadius: BorderRadius.circular(10)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(
+              children: [
+                Expanded(child: Text('Son galibiyet · ${gal.k}', maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(10, FontWeight.w800, const Color(0xFFD97706)))),
+                const SizedBox(width: 6),
+                Text(gal.y, style: jakarta(9.5, FontWeight.w600, const Color(0xFFD97706))),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Expanded(child: Text('${gal.t} · ${gal.d}', maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(12, FontWeight.w800, const Color(0xFFD97706)))),
+                if (gal.v.isNotEmpty) vidBtn(gal.v, "Son Galibiyet"),
+              ],
+            ),
+          ]),
+        );
+      }
+    ),
 
-      FutureBuilder<AtHist>(
-        future: getAtHist(h.atId),
-        builder: (context, snapshot) {
-          final gal = snapshot.data?.galibiyet;
-          if (gal == null) return const SizedBox.shrink();
-          return Container(
-            margin: const EdgeInsets.only(top: 10),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: const Color(0xFFD97706).withAlpha(24), borderRadius: BorderRadius.circular(16)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Son galibiyet · ${gal.k}', style: jakarta(13, FontWeight.w800, const Color(0xFFD97706))),
-                  Text(gal.y, style: jakarta(12.5, FontWeight.w600, const Color(0xFFD97706))),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('${gal.t} · ${gal.d}', style: jakarta(16, FontWeight.w800, const Color(0xFFD97706))),
-                  if (gal.v.isNotEmpty)
-                    GestureDetector(
-                      onTap: () => _playVideo(gal.v, "Son Galibiyet", h.name),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(color: const Color(0xFF111827), borderRadius: BorderRadius.circular(20)),
-                        child: Row(children: [
-                          const Icon(Icons.play_arrow, color: Colors.white, size: 14),
-                          const SizedBox(width: 4),
-                          Text('Videoyu izle', style: jakarta(12, FontWeight.w700, Colors.white)),
-                        ]),
-                      ),
-                    ),
-                ],
-              ),
-            ]),
-          );
-        }
+    FutureBuilder<AtRow?>(
+      future: getAtGalop(h.atId),
+      builder: (context, snapshot) {
+        final gop = snapshot.data;
+        if (gop == null) return const SizedBox.shrink();
+        return Container(
+          margin: const EdgeInsets.only(top: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(color: const Color(0xFF2563EB).withAlpha(20), borderRadius: BorderRadius.circular(10)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Son galop · ${gop.t}', style: jakarta(10, FontWeight.w800, const Color(0xFF2563EB))),
+            const SizedBox(height: 2),
+            Text(gop.d, style: jakarta(12, FontWeight.w800, const Color(0xFF2563EB))),
+            const SizedBox(height: 2),
+            Text(gop.y, style: jakarta(9.5, FontWeight.w600, const Color(0xFF2563EB))),
+          ]),
+        );
+      }
+    ),
+
+    if (ek.isNotEmpty)
+      Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Text('Ekürü: ${ek.map((x) => '${x.no} ${x.name}').join(' · ')}', style: jakarta(10, FontWeight.w700, c.mu)),
       ),
 
-      FutureBuilder<AtRow?>(
-        future: getAtGalop(h.atId),
-        builder: (context, snapshot) {
-          final gop = snapshot.data;
-          if (gop == null) return const SizedBox.shrink();
-          return Container(
-            margin: const EdgeInsets.only(top: 10),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: const Color(0xFF2563EB).withAlpha(24), borderRadius: BorderRadius.circular(16)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Son galop · ${gop.t}', style: jakarta(13, FontWeight.w800, const Color(0xFF2563EB))),
-              const SizedBox(height: 4),
-              Text(gop.d, style: jakarta(16, FontWeight.w800, const Color(0xFF2563EB))),
-              const SizedBox(height: 4),
-              Text(gop.y, style: jakarta(13, FontWeight.w600, const Color(0xFF2563EB))),
+    if (h.orijin.isNotEmpty || h.sahip.isNotEmpty || h.antrenor.isNotEmpty)
+      GestureDetector(
+        onTap: () => setState(() => orOpen ? _orOpen.remove(key) : _orOpen.add(key)),
+        child: Container(
+          margin: const EdgeInsets.only(top: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(color: c.sf2, borderRadius: BorderRadius.circular(10)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Expanded(child: Text('Orijin, sahip, antrenör', style: jakarta(11, FontWeight.w700, c.mu))),
+              Icon(orOpen ? Icons.arrow_drop_up : Icons.arrow_drop_down, color: c.mu, size: 18),
             ]),
-          );
-        }
+            if (orOpen) ...[line('Orijin', h.orijin), line('Sahip', h.sahip), line('Antrenör', h.antrenor)],
+          ]),
+        ),
       ),
-
-      if (ek.isNotEmpty)
-        Padding(
-          padding: const EdgeInsets.only(top: 10),
-          child: Text('Ekürü: ${ek.map((x) => '${x.no} ${x.name}').join(' · ')}', style: jakarta(13, FontWeight.w700, c.mu)),
-        ),
-
-      if (h.orijin.isNotEmpty || h.sahip.isNotEmpty || h.antrenor.isNotEmpty)
-        GestureDetector(
-          onTap: () => setState(() => orOpen ? _orOpen.remove(key) : _orOpen.add(key)),
-          child: Container(
-            margin: const EdgeInsets.only(top: 10),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(color: c.sf2, borderRadius: BorderRadius.circular(14)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Expanded(child: Text('Orijin, sahip, antrenör', style: jakarta(14.5, FontWeight.w700, c.mu))),
-                Icon(orOpen ? Icons.arrow_drop_up : Icons.arrow_drop_down, color: c.mu),
-              ]),
-              if (orOpen) ...[line('Orijin', h.orijin), line('Sahip', h.sahip), line('Antrenör', h.antrenor)],
-            ]),
-          ),
-        ),
-    ]);
-  }
-
-  Widget _horseCard(AppColors c, Horse h) {
+  ]);
+}
+    Widget _horseCard(AppColors c, Horse h) {
     final slot = _t.mode == 'legs' ? 0 : (_t.vir ? _sel.indexWhere((x) => x.no == h.no) : _slot);
     final on = _t.vir ? _sel.any((x) => x.no == h.no && x.r == _race) : _sel.any((x) => x.r == _race && x.slot == slot && x.no == h.no);
     final order = _t.vir && on ? _sel.indexWhere((x) => x.no == h.no) + 1 : 0;
     final odds = (h.gny ?? 0) > 1 ? h.gny : (h.agf != null && h.agf! > 0 ? (75 / h.agf!).clamp(1.1, 999.0) : null);
     final est = (h.gny ?? 0) <= 1;
+    
+    // Özet metni
+    final sum = [
+      if (h.yas.isNotEmpty) h.yas,
+      if (h.siklet != null) '${h.siklet!.toStringAsFixed(h.siklet! % 1 == 0 ? 0 : 1)} kg',
+      if (h.hp != null) 'HP ${h.hp}',
+      if (h.kgs.isNotEmpty) _kgsTxt(h.kgs)
+    ].join(' · ');
+
     return Opacity(
       opacity: h.kosmaz ? 0.4 : 1,
       child: GestureDetector(
         onTap: () => _tap(h),
         child: Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: on ? c.ac.withAlpha(24) : c.sf, borderRadius: BorderRadius.circular(20), border: Border.all(color: on ? c.ac : c.ln, width: on ? 2 : 1)),
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: on ? c.ac.withAlpha(24) : c.sf, 
+            borderRadius: BorderRadius.circular(16), 
+            border: Border.all(color: on ? c.ac : c.ln, width: on ? 2 : 1)
+          ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              NoBadge(h.no, size: 38),
-              const SizedBox(width: 10),
+              NoBadge(h.no, size: 32),
+              const SizedBox(width: 8),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(h.name + (h.kosmaz ? ' (Koşmaz)' : ''), maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(16, FontWeight.w800, c.tx)),
-                  Text(h.jockey, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(13.5, FontWeight.w600, c.mu)),
+                  Text(h.name + (h.kosmaz ? ' (Koşmaz)' : ''), maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(14, FontWeight.w800, c.tx)),
+                  Text(h.jockey, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(11.5, FontWeight.w600, c.mu)),
                 ]),
               ),
-              if (h.agf != null) Padding(padding: const EdgeInsets.only(right: 6), child: Text('%${h.agf}', style: jakarta(13, FontWeight.w800, const Color(0xFFD97706)))),
+              if (h.agf != null) Padding(padding: const EdgeInsets.only(right: 6), child: Text('%${h.agf}', style: jakarta(11.5, FontWeight.w800, const Color(0xFFD97706)))),
               if (odds != null)
                 Container(
-                  margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(color: _pill(odds.toDouble()).withAlpha(30), borderRadius: BorderRadius.circular(10), border: Border.all(color: _pill(odds.toDouble()).withAlpha(120))),
-                  child: Text('${est ? '≈ ' : 'Gny '}${odds.toStringAsFixed(2).replaceAll('.', ',')}', style: jakarta(12, FontWeight.w800, _pill(odds.toDouble()))),
+                  margin: const EdgeInsets.only(right: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(color: _pill(odds.toDouble()).withAlpha(30), borderRadius: BorderRadius.circular(8), border: Border.all(color: _pill(odds.toDouble()).withAlpha(120))),
+                  child: Text('${est ? '≈ ' : 'Gny '}${odds.toStringAsFixed(2).replaceAll('.', ',')}', style: jakarta(10.5, FontWeight.w800, _pill(odds.toDouble()))),
                 ),
               Container(
-                width: 34,
-                height: 34,
+                width: 28,
+                height: 28,
                 alignment: Alignment.center,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: on ? c.ac : Colors.transparent, border: Border.all(color: on ? c.ac : c.ln, width: 2)),
-                child: on ? (order > 0 ? Text('$order', style: jakarta(14, FontWeight.w800, c.on)) : Icon(Icons.check, color: c.on, size: 20)) : Icon(Icons.add, color: c.ac),
+                decoration: BoxDecoration(shape: BoxShape.circle, color: on ? c.ac : Colors.transparent, border: Border.all(color: on ? c.ac : c.ln, width: 1.5)),
+                child: on ? (order > 0 ? Text('$order', style: jakarta(12, FontWeight.w800, c.on)) : Icon(Icons.check, color: c.on, size: 16)) : Icon(Icons.add, color: c.ac, size: 18),
               ),
             ]),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Builder(builder: (_) {
               final open = _detOpen.contains('$_city|$_race|${h.no}');
-              final sum = [if (h.yas.isNotEmpty) h.yas, if (h.siklet != null) '${h.siklet!.toStringAsFixed(h.siklet! % 1 == 0 ? 0 : 1)} kg', if (h.hp != null) 'HP ${h.hp}', if (h.kgs.isNotEmpty) _kgsTxt(h.kgs)].join(' · ');
               return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
-                  Expanded(child: Text(open ? 'Detay bilgileri' : sum, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(13, FontWeight.w600, c.mu))),
+                  Expanded(child: Text(open ? 'Detay bilgileri' : sum, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(11, FontWeight.w600, c.mu))),
                   GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: () => setState(() => open ? _detOpen.remove('$_city|$_race|${h.no}') : _detOpen.add('$_city|$_race|${h.no}')),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-                      child: Text('Detay ${open ? '▴' : '▾'}', style: jakarta(14, FontWeight.w800, c.ac)),
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                      child: Text('Detay ${open ? '▴' : '▾'}', style: jakarta(12, FontWeight.w800, c.ac)),
                     ),
                   ),
                 ]),
@@ -1048,32 +1054,52 @@ Widget _horseDetail(AppColors c, Horse h, String key) {
     final k = cp == null ? 0 : kolon(cp);
     final cost = cp == null ? 0.0 : couponCost(cp);
     final filled = _t.mode == 'legs' ? legs.where((l) => (l['picks'] as List).isNotEmpty).length : 0;
+    
     return Container(
-      padding: EdgeInsets.fromLTRB(14, 10, 14, 10 + MediaQuery.of(context).padding.bottom * 0),
+      padding: EdgeInsets.fromLTRB(12, 8, 12, 8 + MediaQuery.of(context).padding.bottom * 0),
       decoration: BoxDecoration(color: c.sf, border: Border(top: BorderSide(color: c.ln)), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)]),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [...chips, if (_sel.isNotEmpty) _clearBtn(c)])),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Row(children: [
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(_t.mode == 'legs' ? '$filled/${_lr.length} ayak${filled < _lr.length ? ' · ${_lr.length - filled} eksik' : ''}' : '$k kolon', style: jakarta(12.5, FontWeight.w600, c.mu)),
-              Text(money(cost), style: jakarta(22, FontWeight.w800, c.ac)),
+              Text(_t.mode == 'legs' ? '$filled/${_lr.length} ayak${filled < _lr.length ? ' · ${_lr.length - filled} eksik' : ''}' : '$k kolon', style: jakarta(10.5, FontWeight.w600, c.mu)),
+              Text(money(cost), style: jakarta(18, FontWeight.w800, c.ac)),
             ]),
           ),
           Container(
-            decoration: BoxDecoration(color: c.sf2, borderRadius: BorderRadius.circular(16)),
+            height: 36,
+            decoration: BoxDecoration(color: c.sf2, borderRadius: BorderRadius.circular(12)),
             child: Row(children: [
-              IconButton(onPressed: _misli > 1 ? () => setState(() => _misli--) : null, icon: const Icon(Icons.remove)),
-              Text('$_misli', style: jakarta(16, FontWeight.w800, c.tx)),
-              IconButton(onPressed: _misli < 99 ? () => setState(() => _misli++) : null, icon: const Icon(Icons.add)),
+              IconButton(
+                onPressed: _misli > 1 ? () => setState(() => _misli--) : null, 
+                icon: const Icon(Icons.remove, size: 18),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              ),
+              Text('$_misli', style: jakarta(14, FontWeight.w800, c.tx)),
+              IconButton(
+                onPressed: _misli < 99 ? () => setState(() => _misli++) : null, 
+                icon: const Icon(Icons.add, size: 18),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              ),
             ]),
           ),
           const SizedBox(width: 8),
-          FilledButton(
-            onPressed: _busy || _sel.isEmpty ? null : _share,
-            style: FilledButton.styleFrom(backgroundColor: c.ac, padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-            child: Text('Paylaş', style: jakarta(16, FontWeight.w800, c.on)),
+          SizedBox(
+            height: 36,
+            child: FilledButton(
+              onPressed: _busy || _sel.isEmpty ? null : _share,
+              style: FilledButton.styleFrom(
+                backgroundColor: c.ac, 
+                padding: const EdgeInsets.symmetric(horizontal: 16), 
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                minimumSize: Size.zero,
+              ),
+              child: Text('Paylaş', style: jakarta(13, FontWeight.w800, c.on)),
+            ),
           ),
         ]),
       ]),
@@ -1086,21 +1112,21 @@ Widget _horseDetail(AppColors c, Horse h, String key) {
           _misli = 1;
         }),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-          decoration: BoxDecoration(color: c.sf2, borderRadius: BorderRadius.circular(12)),
-          child: Text('Temizle', style: jakarta(13, FontWeight.w700, c.mu)),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(color: c.sf2, borderRadius: BorderRadius.circular(8)),
+          child: Text('Temizle', style: jakarta(11, FontWeight.w700, c.mu)),
         ),
       );
 
   Widget _miniChip(AppColors c, String t, bool on, VoidCallback f) => Padding(
-        padding: const EdgeInsets.only(right: 6),
+        padding: const EdgeInsets.only(right: 4),
         child: GestureDetector(
           onTap: f,
           child: Container(
-            constraints: const BoxConstraints(minWidth: 48),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-            decoration: BoxDecoration(color: on ? c.ac.withAlpha(30) : c.sf2, borderRadius: BorderRadius.circular(12), border: Border.all(color: on ? c.ac : c.ln)),
-            child: Text(t, textAlign: TextAlign.center, style: jakarta(14, FontWeight.w800, c.tx)),
+            constraints: const BoxConstraints(minWidth: 36),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(color: on ? c.ac.withAlpha(30) : c.sf2, borderRadius: BorderRadius.circular(8), border: Border.all(color: on ? c.ac : c.ln)),
+            child: Text(t, textAlign: TextAlign.center, style: jakarta(12, FontWeight.w800, c.tx)),
           ),
         ),
       );
