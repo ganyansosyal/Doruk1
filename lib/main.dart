@@ -1,11 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'firebase_options.dart';
 import 'theme.dart';
 import 'splash.dart';
 
+const _barGreen = Color(0xFF0E7C5B);
+const _barStyle = SystemUiOverlayStyle(
+  statusBarColor: _barGreen,
+  statusBarIconBrightness: Brightness.light,
+  statusBarBrightness: Brightness.dark,
+  systemNavigationBarColor: _barGreen,
+  systemNavigationBarIconBrightness: Brightness.light,
+  systemNavigationBarDividerColor: _barGreen,
+);
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  preloadFonts();
+  await preloadFonts();
+  SystemChrome.setSystemUIOverlayStyle(_barStyle);
   await initFirebase();
   runApp(const GanyanApp());
 }
@@ -22,14 +34,22 @@ class GanyanApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         themeMode: mode,
         scrollBehavior: const NoBounceScroll(),
-        // FittedBox kaldırıldı: tüm uygulamayı transform ile ölçeklemek scroll'u kasıyor ve yazıyı bulanıklaştırıyordu.
-        // Bunun yerine sadece yazı boyutu 445 px tasarıma göre ölçekleniyor.
+        // Ekran küçültme (FittedBox) kaldırıldı: her kare ayrıca ölçeklenmesin, kaydırma akıcı olsun.
+        // Site 445 genişliğe göre tasarlandı; dar telefonlarda sadece yazı boyutu orantılı küçülür.
         builder: (ctx, child) {
           final mq = MediaQuery.of(ctx);
-          final s = (mq.size.width / 445.0).clamp(0.8, 1.0);
+          uiScale = (mq.size.width / 445.0).clamp(0.8, 1.0);
           return MediaQuery(
-            data: mq.copyWith(textScaler: TextScaler.linear(s)),
-            child: child!,
+            data: mq.copyWith(textScaler: TextScaler.noScaling),
+            child: AnnotatedRegion<SystemUiOverlayStyle>(
+              value: _barStyle,
+              child: Stack(fit: StackFit.expand, children: [
+                child!,
+                // Durum ve gezinme çubuğu yeşil
+                Positioned(left: 0, right: 0, top: 0, height: mq.padding.top, child: const IgnorePointer(child: ColoredBox(color: _barGreen))),
+                Positioned(left: 0, right: 0, bottom: 0, height: mq.padding.bottom, child: const IgnorePointer(child: ColoredBox(color: _barGreen))),
+              ]),
+            ),
           );
         },
         theme: buildTheme(AppColors.light, Brightness.light),

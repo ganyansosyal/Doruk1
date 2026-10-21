@@ -21,6 +21,28 @@ class Shell extends StatefulWidget {
 class _ShellState extends State<Shell> {
   final GlobalKey<ScaffoldState> _key = GlobalKey<ScaffoldState>();
   int _tab = 0;
+  final Set<int> _built = {0};
+
+  Widget _page(int i) {
+    switch (i) {
+      case 0:
+        return FeedPage(
+          onOpenRace: (city, race) {
+            predictJump.value = (city: city, race: race);
+            setState(() => _tab = 2);
+          },
+          onOpenLeaders: () => setState(() => _tab = 1),
+        );
+      case 1:
+        return const LeadersPage();
+      case 2:
+        return PredictPage(onShared: () => setState(() => _tab = 0));
+      case 3:
+        return const ResultsPage();
+      default:
+        return ProfileView(uid: profileNotifier.value?.uid ?? '');
+    }
+  }
 
   static const _titles = ['Akış', 'Liderler', 'Tahmin Yap', 'Sonuçlar', 'Profilim'];
 
@@ -47,6 +69,7 @@ class _ShellState extends State<Shell> {
   Widget build(BuildContext context) {
     final c = AppColors.of(context);
     final bottom = MediaQuery.of(context).padding.bottom;
+    _built.add(_tab);
     return Scaffold(
       key: _key,
       drawer: const AppDrawer(),
@@ -64,21 +87,12 @@ class _ShellState extends State<Shell> {
                 Expanded(
                   child: Padding(
                     padding: EdgeInsets.only(bottom: 70 + bottom),
-                    child: _tab == 0
-                        ? FeedPage(
-                            onOpenRace: (city, race) {
-                              predictJump.value = (city: city, race: race);
-                              setState(() => _tab = 2);
-                            },
-                            onOpenLeaders: () => setState(() => _tab = 1),
-                          )
-                        : _tab == 1
-                            ? const LeadersPage()
-                            : _tab == 4
-                                ? ProfileView(uid: profileNotifier.value?.uid ?? '')
-                                : _tab == 2
-                                    ? PredictPage(onShared: () => setState(() => _tab = 0))
-                                    : const ResultsPage(),
+                    // Sekmeler bir kez kurulur, sonra canlı kalır (IndexedStack):
+                    // sekme değiştirince baştan çizim ve yükleme ekranı olmaz.
+                    child: IndexedStack(
+                      index: _tab,
+                      children: [for (var i = 0; i < 5; i++) _built.contains(i) ? _page(i) : const SizedBox.shrink()],
+                    ),
                   ),
                 ),
               ],
@@ -123,9 +137,9 @@ class _ShellState extends State<Shell> {
               child: GestureDetector(
                 onTap: () => openChat(context),
                 child: Container(
-                  width: 76,
-                  height: 76,
-                  padding: const EdgeInsets.all(6),
+                  width: 66,
+                  height: 66,
+                  padding: const EdgeInsets.all(5),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: c.sf,
@@ -142,7 +156,7 @@ class _ShellState extends State<Shell> {
                         colors: [Color(0xFF34D399), Color(0xFF0E9F73)],
                       ),
                     ),
-                    child: const Icon(Icons.chat_bubble_rounded, color: Colors.white, size: 30),
+                    child: const Icon(Icons.forum_rounded, color: Colors.white, size: 27),
                   ),
                 ),
               ),

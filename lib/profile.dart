@@ -126,7 +126,7 @@ class _ProfileViewState extends State<ProfileView> {
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setS) {
         return Padding(
-          padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(ctx).viewInsets.bottom),
+          padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + (MediaQuery.of(ctx).viewInsets.bottom > 0 ? MediaQuery.of(ctx).viewInsets.bottom : MediaQuery.of(ctx).viewPadding.bottom + 8)),
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,

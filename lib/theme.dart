@@ -74,7 +74,12 @@ ThemeData buildTheme(AppColors c, Brightness b) {
 
 final Map<int, TextStyle> _jakartaCache = {};
 
+/// Telefon genişliği / 445 (site tasarım genişliği). main.dart'ta ayarlanır.
+double uiScale = 1.0;
+
 TextStyle jakarta(double size, FontWeight w, Color color, {double? ls}) {
+  size = size * uiScale;
+  ls = ls == null ? null : ls * uiScale;
   final key = Object.hash(size, w.index, color.toARGB32(), ls);
   return _jakartaCache.putIfAbsent(
     key,
@@ -87,11 +92,15 @@ TextStyle jakarta(double size, FontWeight w, Color color, {double? ls}) {
   );
 }
 
-/// Yazı tiplerini uygulama açılırken indirmeye başlat (ilk çizimde takılma olmasın).
-void preloadFonts() {
-  for (final w in const [FontWeight.w500, FontWeight.w600, FontWeight.w700, FontWeight.w800]) {
+/// Yazı tiplerini ilk çizimden ÖNCE yükle. Yüklenmeden çizilen metin sonradan
+/// font değişince yeniden dizilir (kaydırırken "yeniden yazıyor" hissinin sebebi).
+Future<void> preloadFonts() async {
+  for (final w in const [FontWeight.w400, FontWeight.w500, FontWeight.w600, FontWeight.w700, FontWeight.w800]) {
     GoogleFonts.plusJakartaSans(fontWeight: w);
   }
+  try {
+    await GoogleFonts.pendingFonts().timeout(const Duration(seconds: 6));
+  } catch (_) {}
 }
 
 class Brand extends StatelessWidget {

@@ -56,9 +56,15 @@ class Post {
 
 class _Profiles {
   static final Map<String, Future<Profile?>> _m = {};
+  static final Map<String, Profile?> _v = {};
+  // Daha önce yüklenmiş profil varsa hemen ver (kart ilk karede boş çizilip sonra değişmesin)
+  static Profile? cached(String uid) => _v[uid];
   static Future<Profile?> of(String uid) {
     if (uid.isEmpty) return Future.value(null);
-    return _m.putIfAbsent(uid, () => AuthService.loadProfile(uid));
+    return _m.putIfAbsent(uid, () => AuthService.loadProfile(uid).then((p) {
+          _v[uid] = p;
+          return p;
+        }));
   }
 }
 
@@ -159,14 +165,24 @@ class _FeedPageState extends State<FeedPage> {
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _posts = _db.collection('posts').orderBy('ts', descending: true).limit(100).snapshots();
   late final Stream<DocumentSnapshot<Map<String, dynamic>>> _me = _db.collection('users').doc(_myUid).snapshots();
 
+  Timer? _bumpT;
+  bool _fresh = false;
+
   @override
   void initState() {
     super.initState();
     TjkStore.i.ensureLoaded();
-    Timer? deb;
+    // Eski (önbellek) paylaşımlar hiç gösterilmesin: önce sunucudan taze veriyi al, sonra akışı aç.
+    // İnternet yoksa/6 sn'de gelmezse önbellekle devam eder.
+    _db.collection('posts').orderBy('ts', descending: true).limit(100).get(const GetOptions(source: Source.server)).timeout(const Duration(seconds: 6)).then((_) {}, onError: (_) {}).whenComplete(() {
+      if (mounted) setState(() => _fresh = true);
+    });
+    // 3 Firestore akışı art arda gelince feed'i 3 kez baştan hesaplamasın
     void bump() {
-      deb?.cancel();
-      deb = Timer(const Duration(milliseconds: 400), () { if (mounted) setState(() => _ver++); });
+      _bumpT ??= Timer(const Duration(milliseconds: 150), () {
+        _bumpT = null;
+        if (mounted) setState(() => _ver++);
+      });
     }
 
     _subs.add(_db.collection('users').limit(300).snapshots().listen((s) { _users = s.docs; bump(); }, onError: (_) {}));
@@ -176,6 +192,7 @@ class _FeedPageState extends State<FeedPage> {
 
   @override
   void dispose() {
+    _bumpT?.cancel();
     for (final s in _subs) { s.cancel(); }
     _ctl.dispose();
     super.dispose();
@@ -218,6 +235,7 @@ class _FeedPageState extends State<FeedPage> {
   @override
   Widget build(BuildContext context) {
     final c = AppColors.of(context);
+    if (!_fresh) return Center(child: CircularProgressIndicator(color: c.ac));
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: _me,
       builder: (context, meSnap) {
@@ -285,7 +303,7 @@ class _FeedPageState extends State<FeedPage> {
             ];
             return ListView.builder(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 20),
-              cacheExtent: 600,
+              cacheExtent: 1200, // Kartlar ekrana girmeden önce hazırlansın (kaydırırken çizim takılmasın)
               itemCount: head.length + list.length,
               itemBuilder: (context, i) {
                 if (i < head.length) return head[i];
@@ -600,6 +618,7 @@ class PostCard extends StatelessWidget {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             FutureBuilder<Profile?>(
               future: _Profiles.of(p.uid),
+              initialData: _Profiles.cached(p.uid),
               builder: (context, s) {
                 final pr = s.data;
                 void open() { if (p.uid.isNotEmpty) Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileRoute(uid: p.uid))); }
@@ -904,7 +923,9 @@ class _CommentsSheetState extends State<_CommentsSheet> {
   @override
   Widget build(BuildContext context) {
     final c = AppColors.of(context);
-    final kb = MediaQuery.of(context).viewInsets.bottom;
+    final mqx = MediaQuery.of(context);
+    // Klavye kapalıyken telefonun alt çubuğu kadar boşluk bırak (yazı alanı altında kalmasın)
+    final kb = mqx.viewInsets.bottom > 0 ? mqx.viewInsets.bottom : mqx.viewPadding.bottom;
     return Padding(
       padding: EdgeInsets.only(bottom: kb),
       child: SizedBox(

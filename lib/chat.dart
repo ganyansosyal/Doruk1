@@ -127,7 +127,9 @@ class _ChatSheetState extends State<_ChatSheet> {
   @override
   Widget build(BuildContext context) {
     final c = AppColors.of(context);
-    final kb = MediaQuery.of(context).viewInsets.bottom;
+    final mqx = MediaQuery.of(context);
+    // Klavye kapalıyken telefonun alt çubuğu kadar boşluk bırak (yazı alanı altında kalmasın)
+    final kb = mqx.viewInsets.bottom > 0 ? mqx.viewInsets.bottom : mqx.viewPadding.bottom;
     return Padding(
       padding: EdgeInsets.only(bottom: kb),
       child: Column(children: [

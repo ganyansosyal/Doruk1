@@ -82,6 +82,7 @@ class _PredictPageState extends State<PredictPage> {
     super.initState();
     s.addListener(_onStore);
     isAdminNotifier.addListener(_onStore);
+    predictJump.addListener(_onJump);
     if (s.cities.isEmpty) {
       s.ensureLoaded();
     } else {
@@ -93,6 +94,7 @@ class _PredictPageState extends State<PredictPage> {
   void dispose() {
     s.removeListener(_onStore);
     isAdminNotifier.removeListener(_onStore);
+    predictJump.removeListener(_onJump);
     super.dispose();
   }
 
@@ -112,6 +114,11 @@ class _PredictPageState extends State<PredictPage> {
       _goFirstLeg();
     }
     _applyJump();
+  }
+
+  // Sekme canlı kaldığı için 'koşuya git' isteğini burada yakalıyoruz
+  void _onJump() {
+    if (mounted && predictJump.value != null) setState(_applyJump);
   }
 
   void _applyJump() {
@@ -461,8 +468,7 @@ Widget build(BuildContext context) {
   
   return Column(children: [
     Expanded(
-      child: Builder(builder: (_) {
-        final head = <Widget>[
+      child: ListView(padding: const EdgeInsets.fromLTRB(12, 8, 12, 12), children: [
         _dateBar(c),
         const SizedBox(height: 8),
         _typeBox(c),
@@ -511,6 +517,7 @@ Widget build(BuildContext context) {
         ),
         const SizedBox(height: 8),
         if (race != null) _raceCard(c, race),
+        if (race != null) _raceResult(c, race),
         if (_t.mode == 'race' && (_t.slots > 0 || _t.tabs > 0) && !_t.vir) ...[
           const SizedBox(height: 6),
           Row(children: [
@@ -523,19 +530,8 @@ Widget build(BuildContext context) {
         ],
         if (_t.hint.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Text(_t.hint, style: jakarta(11, FontWeight.w500, c.mu))),
         const SizedBox(height: 8),
-        ];
-        final atlar = race?.atlar ?? const <Horse>[];
-        return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-          cacheExtent: 600,
-          itemCount: head.length + atlar.length,
-          itemBuilder: (_, i) {
-            if (i < head.length) return head[i];
-            final h = atlar[i - head.length];
-            return RepaintBoundary(key: ValueKey('${_city}_${_race}_${h.no}'), child: _horseCard(c, h));
-          },
-        );
-      }),
+        if (race != null) for (final h in race.atlar) RepaintBoundary(child: _horseCard(c, h)),
+      ]),
     ),
     _couponBar(c),
   ]);
@@ -696,6 +692,54 @@ void _pickType() {
         ]),
       );
     },
+  );
+}
+
+Widget _raceResult(AppColors c, Race r) {
+  final rr = s.results[_city]?[r.no];
+  if (rr == null || (rr.sira.isEmpty && rr.bahis.isEmpty)) return const SizedBox.shrink();
+  String adi(int no) {
+    for (final h in r.atlar) {
+      if (h.no == no) return h.name;
+    }
+    return '';
+  }
+
+  Widget head(String t) => Padding(padding: const EdgeInsets.fromLTRB(12, 10, 12, 6), child: Text(t, style: jakarta(13, FontWeight.w800, c.ac)));
+  return Container(
+    width: double.infinity,
+    margin: const EdgeInsets.only(top: 8),
+    decoration: BoxDecoration(color: c.sf, borderRadius: BorderRadius.circular(16), border: Border.all(color: c.ln)),
+    clipBehavior: Clip.antiAlias,
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (rr.sira.isNotEmpty) ...[
+        head('${r.no}. koşu sonucu'),
+        for (var i = 0; i < rr.sira.length && i < 4; i++)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(border: Border(top: BorderSide(color: c.ln))),
+            child: Row(children: [
+              SizedBox(width: 22, child: Text('${i + 1}', style: jakarta(12.5, FontWeight.w800, c.mu))),
+              SizedBox(width: 28, child: Text('${rr.sira[i]}', style: jakarta(13, FontWeight.w800, c.tx))),
+              Expanded(child: Text(adi(rr.sira[i]), style: jakarta(12.5, FontWeight.w700, c.tx))),
+              if ((rr.gny[rr.sira[i]] ?? '').isNotEmpty) Text('Gny ${rr.gny[rr.sira[i]]}', style: jakarta(12.5, FontWeight.w800, c.ac)),
+            ]),
+          ),
+      ],
+      if (rr.bahis.isNotEmpty) ...[
+        head('Bahis ödemeleri'),
+        for (final x in rr.bahis)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(border: Border(top: BorderSide(color: c.ln))),
+            child: Row(children: [
+              Expanded(child: Text(x.tur, style: jakarta(12.5, FontWeight.w700, c.tx))),
+              if (x.detay.isNotEmpty) Padding(padding: const EdgeInsets.only(right: 10), child: Text(x.detay, style: jakarta(11, FontWeight.w600, c.mu))),
+              Text('${x.tutar} ₺', style: jakarta(12.5, FontWeight.w800, c.gold)),
+            ]),
+          ),
+      ],
+    ]),
   );
 }
 
