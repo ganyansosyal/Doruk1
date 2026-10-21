@@ -220,7 +220,7 @@ class TopBar extends StatelessWidget {
             onTap: () => themeMode.value = isDark ? ThemeMode.light : ThemeMode.dark,
           ),
           const SizedBox(width: 8),
-          IconBox(icon: Icons.notifications_none, onTap: onBell),
+          NotifBell(onTap: onBell),
         ],
       ),
     );

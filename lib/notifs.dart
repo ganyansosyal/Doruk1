@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'auth_service.dart';
 import 'feed.dart';
@@ -27,10 +30,120 @@ Widget _page(BuildContext context, String title, Widget body) {
   );
 }
 
+/* ---------------- Zil rozeti (okunmamış bildirim sayısı) ---------------- */
+
+// Son bildirim sayfası açılış zamanı (cihazda saklanır). -1 = henüz yüklenmedi
+final ValueNotifier<int> _nfSeen = ValueNotifier<int>(-1);
+String _nfLoadedFor = '';
+
+Future<File> _nfFile(String uid) async {
+  final d = await getApplicationSupportDirectory();
+  return File('${d.path}/nf_seen_$uid.txt');
+}
+
+Future<void> _nfMark(String uid) async {
+  final now = DateTime.now().millisecondsSinceEpoch;
+  _nfSeen.value = now;
+  try {
+    await (await _nfFile(uid)).writeAsString('$now');
+  } catch (_) {}
+}
+
+Future<void> _nfLoad(String uid) async {
+  if (uid.isEmpty || _nfLoadedFor == uid) return;
+  _nfLoadedFor = uid;
+  try {
+    final f = await _nfFile(uid);
+    if (await f.exists()) {
+      _nfSeen.value = int.tryParse(await f.readAsString()) ?? 0;
+    } else {
+      await _nfMark(uid); // ilk kurulum: eskiler okunmamış sayılmasın
+    }
+  } catch (_) {
+    _nfSeen.value = DateTime.now().millisecondsSinceEpoch;
+  }
+}
+
+class NotifBell extends StatefulWidget {
+  final VoidCallback onTap;
+  const NotifBell({super.key, required this.onTap});
+  @override
+  State<NotifBell> createState() => _NotifBellState();
+}
+
+class _NotifBellState extends State<NotifBell> {
+  late final String _me = profileNotifier.value?.uid ?? '';
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _s =
+      FirebaseFirestore.instance.collection('notifs').where('to', isEqualTo: _me).limit(100).snapshots();
+
+  @override
+  void initState() {
+    super.initState();
+    _nfLoad(_me);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bell = IconBox(icon: Icons.notifications_none, onTap: widget.onTap);
+    if (_me.isEmpty) return bell;
+    return ValueListenableBuilder<int>(
+      valueListenable: _nfSeen,
+      builder: (context, seen, _) => StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: _s,
+        builder: (context, snap) {
+          var n = 0;
+          if (seen >= 0 && snap.hasData) {
+            final now = DateTime.now().millisecondsSinceEpoch;
+            for (final d in snap.data!.docs) {
+              final m = d.data();
+              final e = m['exp'];
+              if (e is Timestamp && e.millisecondsSinceEpoch <= now) continue;
+              if (((m['ts'] as num?) ?? 0) > seen) n++;
+            }
+          }
+          return Stack(clipBehavior: Clip.none, children: [
+            bell,
+            if (n > 0)
+              Positioned(
+                right: -4,
+                top: -4,
+                child: Container(
+                  constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(color: const Color(0xFFE0305A), borderRadius: BorderRadius.circular(9), border: Border.all(color: AppColors.of(context).bg, width: 1.5)),
+                  child: Text(n > 9 ? '9+' : '$n', style: jakarta(10.5, FontWeight.w800, Colors.white)),
+                ),
+              ),
+          ]);
+        },
+      ),
+    );
+  }
+}
+
 /* ---------------- Bildirimler ---------------- */
 
-class NotificationsPage extends StatelessWidget {
+class NotificationsPage extends StatefulWidget {
   const NotificationsPage({super.key});
+  @override
+  State<NotificationsPage> createState() => _NotificationsPageState();
+}
+
+class _NotificationsPageState extends State<NotificationsPage> {
+  String get _uid => profileNotifier.value?.uid ?? '';
+
+  @override
+  void initState() {
+    super.initState();
+    _nfMark(_uid);
+  }
+
+  @override
+  void dispose() {
+    _nfMark(_uid); // sayfa açıkken gelenler de okunmuş sayılsın
+    super.dispose();
+  }
 
   static String _text(Map<String, dynamic> n) {
     final fn = (n['fn'] ?? 'Biri').toString(), tx = (n['tx'] ?? '').toString();
