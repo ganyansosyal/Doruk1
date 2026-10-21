@@ -72,7 +72,6 @@ class _ResultsPageState extends State<ResultsPage> {
 
   bool _filmBusy = false;
 
-  // İzle: mp4 adresini TJK sayfasından okuyup videoyu uygulama içinde oynat; bulunamazsa tarayıcıya düş
   Future<void> _play(String city, int r, String vid) async {
     if (_filmBusy) return;
     _filmBusy = true;
@@ -99,8 +98,7 @@ class _ResultsPageState extends State<ResultsPage> {
         rows.add(FilmRow(no, h?.name ?? '', s.results[city]?[r]?.gny[no]));
       }
       final p = s.iso.split('-');
-      await showRaceFilm(context,
-          url: mp4, race: r, city: city, dateLabel: '${p[2]}.${p[1]}.${p[0]}', rows: rows);
+      await showRaceFilm(context, url: mp4, race: r, city: city, dateLabel: '${p[2]}.${p[1]}.${p[0]}', rows: rows);
     } catch (_) {
       messenger.hideCurrentSnackBar();
       await _open(vid);
@@ -129,50 +127,51 @@ class _ResultsPageState extends State<ResultsPage> {
       cards.insert(cards.length < 3 ? cards.length : 2, x);
     }
     final last = races.where((k) => (s.results[city]?[k.no]?.bahis ?? const []).isNotEmpty).map((k) => k.no).toList();
+    
     return RefreshIndicator(
       onRefresh: () => s.refreshResults(force: true),
-      child: ListView(padding: const EdgeInsets.fromLTRB(16, 10, 16, 24), children: [
+      child: ListView(padding: const EdgeInsets.fromLTRB(12, 8, 12, 20), children: [
         Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: c.sf, borderRadius: BorderRadius.circular(20), border: Border.all(color: c.ln)),
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(color: c.sf, borderRadius: BorderRadius.circular(16), border: Border.all(color: c.ln)),
           child: Row(children: [
             _arrow(c, Icons.chevron_left, () => _day(-1)),
             Expanded(child: Column(children: [
-              if (isoTag(s.iso).isNotEmpty) Text(isoTag(s.iso), style: jakarta(11.5, FontWeight.w800, c.ac)),
-              Text(isoLabel(s.iso), style: jakarta(17, FontWeight.w800, c.tx)),
+              if (isoTag(s.iso).isNotEmpty) Text(isoTag(s.iso), style: jakarta(10, FontWeight.w800, c.ac)),
+              Text(isoLabel(s.iso), style: jakarta(14.5, FontWeight.w800, c.tx)),
             ])),
             _arrow(c, Icons.chevron_right, () => _day(1)),
           ]),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         if (s.cities.isEmpty)
-          Padding(padding: const EdgeInsets.all(30), child: Text(s.error ?? 'Sonuçlar yükleniyor…', textAlign: TextAlign.center, style: jakarta(14, FontWeight.w600, c.mu)))
+          Padding(padding: const EdgeInsets.all(20), child: Text(s.error ?? 'Sonuçlar yükleniyor…', textAlign: TextAlign.center, style: jakarta(13, FontWeight.w600, c.mu)))
         else ...[
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(children: [
               for (final ct in s.cities)
                 Padding(
-                  padding: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.only(right: 6),
                   child: GestureDetector(
                     onTap: () => setState(() => _city = ct.name),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-                      decoration: BoxDecoration(color: ct.name == city ? c.ac : Colors.transparent, borderRadius: BorderRadius.circular(16)),
-                      child: Text(ct.name, style: jakarta(14, FontWeight.w800, ct.name == city ? c.on : c.mu)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(color: ct.name == city ? c.ac : Colors.transparent, borderRadius: BorderRadius.circular(12)),
+                      child: Text(ct.name, style: jakarta(12, FontWeight.w800, ct.name == city ? c.on : c.mu)),
                     ),
                   ),
                 ),
             ]),
           ),
-          const SizedBox(height: 6),
-          Text('$done/${races.length} koşu tamamlandı', style: jakarta(13, FontWeight.w600, c.mu)),
-          const SizedBox(height: 10),
+          const SizedBox(height: 4),
+          Text('$done/${races.length} koşu tamamlandı', style: jakarta(11, FontWeight.w600, c.mu)),
+          const SizedBox(height: 8),
           for (final cd in cards) _card(c, city, cd),
           ..._odemeler(c, city, races),
           if (last.isNotEmpty) _bahisOdemeleri(c, city, last.last),
           if (cards.isEmpty && last.isEmpty)
-            Padding(padding: const EdgeInsets.all(24), child: Text('Henüz sonuç yok. Koşular bitip ödemeler yayınlanınca burada görünecek.', textAlign: TextAlign.center, style: jakarta(14, FontWeight.w600, c.mu))),
+            Padding(padding: const EdgeInsets.all(20), child: Text('Henüz sonuç yok. Koşular bitip ödemeler yayınlanınca burada görünecek.', textAlign: TextAlign.center, style: jakarta(13, FontWeight.w600, c.mu))),
         ],
       ]),
     );
@@ -180,21 +179,21 @@ class _ResultsPageState extends State<ResultsPage> {
 
   Widget _arrow(AppColors c, IconData ic, VoidCallback f) => GestureDetector(
         onTap: f,
-        child: Container(width: 40, height: 40, decoration: BoxDecoration(color: c.sf2, borderRadius: BorderRadius.circular(14)), child: Icon(ic, color: c.tx)),
+        child: Container(width: 34, height: 34, decoration: BoxDecoration(color: c.sf2, borderRadius: BorderRadius.circular(12)), child: Icon(ic, color: c.tx, size: 18)),
       );
 
   Widget _head(List<Color> k, String a, String b) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(gradient: LinearGradient(colors: k), borderRadius: const BorderRadius.vertical(top: Radius.circular(20))),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(gradient: LinearGradient(colors: k), borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
         child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Flexible(child: Text(a, style: jakarta(15, FontWeight.w800, Colors.white))),
-          Text(b, style: jakarta(13, FontWeight.w800, Colors.white)),
+          Flexible(child: Text(a, style: jakarta(13, FontWeight.w800, Colors.white))),
+          Text(b, style: jakarta(11, FontWeight.w800, Colors.white)),
         ]),
       );
 
   Widget _box(AppColors c, List<Color> k, String a, String b, List<Widget> rows) => Container(
-        margin: const EdgeInsets.only(bottom: 14),
-        decoration: BoxDecoration(color: c.sf, borderRadius: BorderRadius.circular(20), border: Border.all(color: c.ln)),
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(color: c.sf, borderRadius: BorderRadius.circular(14), border: Border.all(color: c.ln)),
         child: Column(children: [_head(k, a, b), ...rows]),
       );
 
@@ -215,24 +214,24 @@ class _ResultsPageState extends State<ResultsPage> {
       }
       final vid = s.results[city]?[r]?.video ?? '';
       rows.add(Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(border: Border(top: BorderSide(color: c.ln))),
         child: Row(children: [
-          SizedBox(width: 24, child: Text('${i + 1}', style: jakarta(15, FontWeight.w800, c.mu))),
+          SizedBox(width: 20, child: Text('${i + 1}', style: jakarta(12, FontWeight.w800, c.mu))),
           if (h != null) ...[
-            NoBadge(h.no, size: 32),
-            const SizedBox(width: 10),
+            NoBadge(h.no, size: 28),
+            const SizedBox(width: 8),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(h.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(14.5, FontWeight.w800, c.tx)),
-              if (h.agf != null) Text('%${h.agf}', style: jakarta(12, FontWeight.w600, c.mu)),
+              Text(h.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(12.5, FontWeight.w800, c.tx)),
+              if (h.agf != null) Text('%${h.agf}', style: jakarta(10.5, FontWeight.w600, c.mu)),
             ])),
             if (s.results[city]?[r]?.gny[no] != null)
-              Padding(padding: const EdgeInsets.only(right: 8), child: Text('Gny ${s.results[city]![r]!.gny[no]}', style: jakarta(13, FontWeight.w800, c.ac))),
-            if (vid.isNotEmpty) GestureDetector(onTap: () => _play(city, r, vid), child: Text('İzle', style: jakarta(13, FontWeight.w800, c.red))),
+              Padding(padding: const EdgeInsets.only(right: 6), child: Text('Gny ${s.results[city]![r]!.gny[no]}', style: jakarta(11, FontWeight.w800, c.ac))),
+            if (vid.isNotEmpty) GestureDetector(onTap: () => _play(city, r, vid), child: Text('İzle', style: jakarta(11, FontWeight.w800, c.red))),
           ] else
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('$r. koşu', style: jakarta(14.5, FontWeight.w800, c.mu)),
-              Text(s.raceDone(city, r) ? 'Sonuç alınıyor…' : 'Henüz koşulmadı', style: jakarta(12, FontWeight.w600, c.mu)),
+              Text('$r. koşu', style: jakarta(12.5, FontWeight.w800, c.mu)),
+              Text(s.raceDone(city, r) ? 'Sonuç alınıyor…' : 'Henüz koşulmadı', style: jakarta(10.5, FontWeight.w600, c.mu)),
             ])),
         ]),
       ));
@@ -240,11 +239,11 @@ class _ResultsPageState extends State<ResultsPage> {
     final od = all ? _odeme(city, cd.ord, cd.n, 'Ganyan', cd.st + cd.n - 1) : null;
     final ok = od != null && RegExp(r',\d{1,2}$').hasMatch(od.tutar);
     rows.add(Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(color: c.gold.withAlpha(30), border: Border(top: BorderSide(color: c.ln)), borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20))),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(color: c.gold.withAlpha(30), border: Border(top: BorderSide(color: c.ln)), borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14))),
       child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Text('İkramiye', style: jakarta(15, FontWeight.w800, c.tx)),
-        Text(ok ? '${od!.tutar} ₺' : 'Bekleniyor', style: jakarta(15, FontWeight.w800, ok ? c.ac : c.mu)),
+        Text('İkramiye', style: jakarta(13, FontWeight.w800, c.tx)),
+        Text(ok ? '${od!.tutar} ₺' : 'Bekleniyor', style: jakarta(13, FontWeight.w800, ok ? c.ac : c.mu)),
       ]),
     ));
     return _box(c, _renk[cd.n] ?? _renk[6]!, "${cd.ord > 0 ? '${cd.ord}. ' : ''}${cd.n}'${cd.n == 6 ? 'lı' : cd.n == 4 ? 'lü' : cd.n == 3 ? 'lü' : 'li'} Ganyan".toUpperCase().replaceAll('İ', 'İ'), '${cd.st}.–${cd.st + cd.n - 1}. KOŞU', rows);
@@ -264,11 +263,11 @@ class _ResultsPageState extends State<ResultsPage> {
       _box(c, const [Color(0xFF1E3A8A), Color(0xFF6366F1)], 'Bahis türü', 'İkramiyeler', [
         for (final x in list)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(border: Border(top: BorderSide(color: c.ln))),
             child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Text(x.tur, style: jakarta(14.5, FontWeight.w800, c.tx)),
-              Text('${x.tutar} ₺', style: jakarta(14.5, FontWeight.w800, c.ac)),
+              Text(x.tur, style: jakarta(12.5, FontWeight.w800, c.tx)),
+              Text('${x.tutar} ₺', style: jakarta(12.5, FontWeight.w800, c.ac)),
             ]),
           ),
       ])
@@ -280,12 +279,12 @@ class _ResultsPageState extends State<ResultsPage> {
     return _box(c, const [Color(0xFF0F766E), Color(0xFF2DD4BF)], 'Bahis ödemeleri', '$no. koşu', [
       for (final x in l)
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(border: Border(top: BorderSide(color: c.ln))),
           child: Row(children: [
-            Expanded(child: Text(x.tur, style: jakarta(14.5, FontWeight.w700, c.tx))),
-            if (x.detay.isNotEmpty) Padding(padding: const EdgeInsets.only(right: 12), child: Text(x.detay, style: jakarta(13, FontWeight.w600, c.mu))),
-            Text('${x.tutar} ₺', style: jakarta(14.5, FontWeight.w800, c.gold)),
+            Expanded(child: Text(x.tur, style: jakarta(12.5, FontWeight.w700, c.tx))),
+            if (x.detay.isNotEmpty) Padding(padding: const EdgeInsets.only(right: 10), child: Text(x.detay, style: jakarta(11, FontWeight.w600, c.mu))),
+            Text('${x.tutar} ₺', style: jakarta(12.5, FontWeight.w800, c.gold)),
           ]),
         ),
     ]);
