@@ -120,167 +120,170 @@ class _ProfileViewState extends State<ProfileView> {
   await showModalBottomSheet(
     context: context,
     isScrollControlled: true,
+    useSafeArea: true, // <-- STATUS BAR SORUNUNU ÇÖZEN SATIR
     backgroundColor: c.bg,
     shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setS) {
         return Padding(
           padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(ctx).viewInsets.bottom),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Profili Düzenle', style: jakarta(18, FontWeight.w800, c.tx)),
-                  IconButton(onPressed: () => Navigator.pop(ctx), icon: Icon(Icons.close, color: c.tx)),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Stack(
-                    children: [
-                      Avatar(profile: Profile(uid: p.uid, name: name.text, handle: p.handle, photo: photo), size: 72),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: GestureDetector(
-                          onTap: () async {
-                            final x = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 320, maxHeight: 320, imageQuality: 70);
-                            if (x == null) return;
-                            final b = await x.readAsBytes();
-                            setS(() => photo = 'data:image/jpeg;base64,${base64Encode(b)}');
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(color: c.ac, shape: BoxShape.circle, border: Border.all(color: c.bg, width: 2)),
-                            child: const Icon(Icons.camera_alt, color: Colors.white, size: 14),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text('Ad', style: jakarta(12, FontWeight.w700, c.mu)),
-              const SizedBox(height: 4),
-              TextField(
-                controller: name,
-                maxLength: nameMax,
-                style: jakarta(14, FontWeight.w600, c.tx),
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: c.sf2,
-                  counterText: '',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text('Kullanıcı adı', style: jakarta(12, FontWeight.w700, c.mu)),
-              const SizedBox(height: 4),
-              TextField(
-                controller: TextEditingController(text: '@${p.handle}'),
-                readOnly: true,
-                style: jakarta(14, FontWeight.w600, c.mu),
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: c.sf2,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text('Biyografi', style: jakarta(12, FontWeight.w700, c.mu)),
-              const SizedBox(height: 4),
-              TextField(
-                controller: bio,
-                maxLength: 160,
-                maxLines: 3,
-                style: jakarta(14, FontWeight.w600, bioColor.isNotEmpty ? _hexColor(bioColor) : c.tx),
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: c.sf2,
-                  hintText: 'Kendinden kısaca bahset...',
-                  counterText: '',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                ),
-              ),
-              Align(alignment: Alignment.centerRight, child: Text('${bio.text.length}/160', style: jakarta(11, FontWeight.w600, c.mu))),
-              const SizedBox(height: 12),
-              Text('Biyografi yazı rengi', style: jakarta(12, FontWeight.w700, c.mu)),
-              const SizedBox(height: 8),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    for (final col in colors)
-                      GestureDetector(
-                        onTap: () => setS(() => bioColor = col),
-                        child: Container(
-                          margin: const EdgeInsets.only(right: 12),
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: col.isEmpty ? null : _hexColor(col),
-                            gradient: col.isEmpty ? const LinearGradient(colors: [Colors.black, Colors.grey], begin: Alignment.topCenter, end: Alignment.bottomCenter) : null,
-                            border: Border.all(color: bioColor == col ? c.ac : Colors.transparent, width: 2),
-                          ),
-                          child: bioColor == col ? Icon(Icons.circle, size: 12, color: col.isEmpty ? Colors.white : c.bg) : null,
-                        ),
-                      ),
+                    Text('Profili Düzenle', style: jakarta(18, FontWeight.w800, c.tx)),
+                    IconButton(onPressed: () => Navigator.pop(ctx), icon: Icon(Icons.close, color: c.tx)),
                   ],
                 ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        side: BorderSide(color: c.ln),
-                      ),
-                      child: Text('Vazgeç', style: jakarta(14, FontWeight.w800, c.mu)),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Stack(
+                      children: [
+                        Avatar(profile: Profile(uid: p.uid, name: name.text, handle: p.handle, photo: photo), size: 72),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: GestureDetector(
+                            onTap: () async {
+                              final x = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 320, maxHeight: 320, imageQuality: 70);
+                              if (x == null) return;
+                              final b = await x.readAsBytes();
+                              setS(() => photo = 'data:image/jpeg;base64,${base64Encode(b)}');
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(color: c.ac, shape: BoxShape.circle, border: Border.all(color: c.bg, width: 2)),
+                              child: const Icon(Icons.camera_alt, color: Colors.white, size: 14),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text('Ad', style: jakarta(12, FontWeight.w700, c.mu)),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: name,
+                  maxLength: nameMax,
+                  style: jakarta(14, FontWeight.w600, c.tx),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: c.sf2,
+                    counterText: '',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: () async {
-                        final n = name.text.trim();
-                        if (n.length < 2) return;
-                        try {
-                          await _db.collection('users').doc(widget.uid).update({
-                            'name': n,
-                            'bio': bio.text.trim(),
-                            'bioColor': bioColor,
-                            'photo': photo,
-                          });
-                          profileNotifier.value = await AuthService.loadProfile(widget.uid);
-                          if (ctx.mounted) Navigator.pop(ctx);
-                        } catch (e) {
-                          if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(AuthService.errorText(e))));
-                        }
-                      },
-                      style: FilledButton.styleFrom(
-                        backgroundColor: c.ac,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                const SizedBox(height: 12),
+                Text('Kullanıcı adı', style: jakarta(12, FontWeight.w700, c.mu)),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: TextEditingController(text: '@${p.handle}'),
+                  readOnly: true,
+                  style: jakarta(14, FontWeight.w600, c.mu),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: c.sf2,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text('Biyografi', style: jakarta(12, FontWeight.w700, c.mu)),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: bio,
+                  maxLength: 160,
+                  maxLines: 3,
+                  style: jakarta(14, FontWeight.w600, bioColor.isNotEmpty ? _hexColor(bioColor) : c.tx),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: c.sf2,
+                    hintText: 'Kendinden kısaca bahset...',
+                    counterText: '',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  ),
+                ),
+                Align(alignment: Alignment.centerRight, child: Text('${bio.text.length}/160', style: jakarta(11, FontWeight.w600, c.mu))),
+                const SizedBox(height: 12),
+                Text('Biyografi yazı rengi', style: jakarta(12, FontWeight.w700, c.mu)),
+                const SizedBox(height: 8),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      for (final col in colors)
+                        GestureDetector(
+                          onTap: () => setS(() => bioColor = col),
+                          child: Container(
+                            margin: const EdgeInsets.only(right: 12),
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: col.isEmpty ? null : _hexColor(col),
+                              gradient: col.isEmpty ? const LinearGradient(colors: [Colors.black, Colors.grey], begin: Alignment.topCenter, end: Alignment.bottomCenter) : null,
+                              border: Border.all(color: bioColor == col ? c.ac : Colors.transparent, width: 2),
+                            ),
+                            child: bioColor == col ? Icon(Icons.circle, size: 12, color: col.isEmpty ? Colors.white : c.bg) : null,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          side: BorderSide(color: c.ln),
+                        ),
+                        child: Text('Vazgeç', style: jakarta(14, FontWeight.w800, c.mu)),
                       ),
-                      child: Text('Kaydet', style: jakarta(14, FontWeight.w800, c.on)),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () async {
+                          final n = name.text.trim();
+                          if (n.length < 2) return;
+                          try {
+                            await _db.collection('users').doc(widget.uid).update({
+                              'name': n,
+                              'bio': bio.text.trim(),
+                              'bioColor': bioColor,
+                              'photo': photo,
+                            });
+                            profileNotifier.value = await AuthService.loadProfile(widget.uid);
+                            if (ctx.mounted) Navigator.pop(ctx);
+                          } catch (e) {
+                            if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(AuthService.errorText(e))));
+                          }
+                        },
+                        style: FilledButton.styleFrom(
+                          backgroundColor: c.ac,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: Text('Kaydet', style: jakarta(14, FontWeight.w800, c.on)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -292,6 +295,7 @@ class _ProfileViewState extends State<ProfileView> {
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
+    useSafeArea: true,
     backgroundColor: c.bg,
     shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
     builder: (ctx) => SizedBox(
