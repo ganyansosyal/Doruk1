@@ -52,7 +52,7 @@ class GanyanApp extends StatelessWidget {
         // Site 445 genişliğe göre tasarlandı; dar telefonlarda sadece yazı boyutu orantılı küçülür.
         builder: (ctx, child) {
           final mq = MediaQuery.of(ctx);
-          uiScale = (mq.size.width / 445.0).clamp(0.8, 1.0);
+          uiScale = (mq.size.width / 445.0).clamp(0.8, 1.0).toDouble();
           return MediaQuery(
             data: mq.copyWith(textScaler: TextScaler.noScaling),
             child: AnnotatedRegion<SystemUiOverlayStyle>(
