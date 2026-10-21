@@ -48,25 +48,26 @@ class Profile {
   late final ImageProvider? image = _imageOf(photo);
 }
 
-// Aynı fotoğraf her yeniden çizimde tekrar çözülmesin (avatar titremesi/yavaşlık)
 final Map<String, ImageProvider?> _imgCache = {};
 
 ImageProvider? _imageOf(String s) {
   if (s.isEmpty) return null;
-  final hit = _imgCache[s];
-  if (hit != null || _imgCache.containsKey(s)) return hit;
-  ImageProvider? r;
-  try {
-    if (s.startsWith('http')) {
-      r = NetworkImage(s);
-    } else {
-      final i = s.indexOf('base64,');
-      if (i >= 0) r = MemoryImage(base64Decode(s.substring(i + 7)));
+  // Aynı foto için tek provider: her yenilemede base64 çözme + tam boyut decode olmasın.
+  return _imgCache.putIfAbsent(s, () {
+    try {
+      ImageProvider raw;
+      if (s.startsWith('http')) {
+        raw = NetworkImage(s);
+      } else {
+        final i = s.indexOf('base64,');
+        if (i < 0) return null;
+        raw = MemoryImage(base64Decode(s.substring(i + 7)));
+      }
+      return ResizeImage(raw, width: 160, policy: ResizeImagePolicy.fit);
+    } catch (_) {
+      return null;
     }
-  } catch (_) {}
-  if (_imgCache.length > 150) _imgCache.clear();
-  _imgCache[s] = r;
-  return r;
+  });
 }
 
 final ValueNotifier<Profile?> profileNotifier = ValueNotifier<Profile?>(null);

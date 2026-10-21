@@ -82,7 +82,6 @@ class _PredictPageState extends State<PredictPage> {
     super.initState();
     s.addListener(_onStore);
     isAdminNotifier.addListener(_onStore);
-    predictJump.addListener(_onJump);
     if (s.cities.isEmpty) {
       s.ensureLoaded();
     } else {
@@ -94,7 +93,6 @@ class _PredictPageState extends State<PredictPage> {
   void dispose() {
     s.removeListener(_onStore);
     isAdminNotifier.removeListener(_onStore);
-    predictJump.removeListener(_onJump);
     super.dispose();
   }
 
@@ -114,11 +112,6 @@ class _PredictPageState extends State<PredictPage> {
       _goFirstLeg();
     }
     _applyJump();
-  }
-
-  // Sekme canlı kaldığı için 'koşuya git' isteğini burada yakalıyoruz
-  void _onJump() {
-    if (mounted && predictJump.value != null) setState(_applyJump);
   }
 
   void _applyJump() {
@@ -468,7 +461,8 @@ Widget build(BuildContext context) {
   
   return Column(children: [
     Expanded(
-      child: ListView(padding: const EdgeInsets.fromLTRB(12, 8, 12, 12), children: [
+      child: Builder(builder: (_) {
+        final head = <Widget>[
         _dateBar(c),
         const SizedBox(height: 8),
         _typeBox(c),
@@ -529,8 +523,19 @@ Widget build(BuildContext context) {
         ],
         if (_t.hint.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Text(_t.hint, style: jakarta(11, FontWeight.w500, c.mu))),
         const SizedBox(height: 8),
-        if (race != null) for (final h in race.atlar) _horseCard(c, h),
-      ]),
+        ];
+        final atlar = race?.atlar ?? const <Horse>[];
+        return ListView.builder(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+          cacheExtent: 600,
+          itemCount: head.length + atlar.length,
+          itemBuilder: (_, i) {
+            if (i < head.length) return head[i];
+            final h = atlar[i - head.length];
+            return RepaintBoundary(key: ValueKey('${_city}_${_race}_${h.no}'), child: _horseCard(c, h));
+          },
+        );
+      }),
     ),
     _couponBar(c),
   ]);

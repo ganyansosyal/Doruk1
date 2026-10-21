@@ -22,28 +22,14 @@ class GanyanApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         themeMode: mode,
         scrollBehavior: const NoBounceScroll(),
-        // Site 445 px genişlikte tasarlandı (viewport width=445): her telefonda aynı oranda ölçeklenir.
+        // FittedBox kaldırıldı: tüm uygulamayı transform ile ölçeklemek scroll'u kasıyor ve yazıyı bulanıklaştırıyordu.
+        // Bunun yerine sadece yazı boyutu 445 px tasarıma göre ölçekleniyor.
         builder: (ctx, child) {
           final mq = MediaQuery.of(ctx);
-          const baseW = 445.0;
-          final s = mq.size.width / baseW;
-          final h = mq.size.height / s;
-          return FittedBox(
-            fit: BoxFit.fill,
-            child: SizedBox(
-              width: baseW,
-              height: h,
-              child: MediaQuery(
-                data: mq.copyWith(
-                  size: Size(baseW, h),
-                  padding: mq.padding / s,
-                  viewPadding: mq.viewPadding / s,
-                  viewInsets: mq.viewInsets / s,
-                  textScaler: TextScaler.noScaling,
-                ),
-                child: child!,
-              ),
-            ),
+          final s = (mq.size.width / 445.0).clamp(0.8, 1.0);
+          return MediaQuery(
+            data: mq.copyWith(textScaler: TextScaler.linear(s)),
+            child: child!,
           );
         },
         theme: buildTheme(AppColors.light, Brightness.light),
