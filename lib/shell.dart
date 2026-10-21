@@ -65,7 +65,13 @@ class _ShellState extends State<Shell> {
                   child: Padding(
                     padding: EdgeInsets.only(bottom: 70 + bottom),
                     child: _tab == 0
-                        ? const FeedPage()
+                        ? FeedPage(
+                            onOpenRace: (city, race) {
+                              predictJump.value = (city: city, race: race);
+                              setState(() => _tab = 2);
+                            },
+                            onOpenLeaders: () => setState(() => _tab = 1),
+                          )
                         : _tab == 1
                             ? const LeadersPage()
                             : _tab == 4

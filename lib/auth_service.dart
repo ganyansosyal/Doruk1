@@ -25,6 +25,7 @@ String cleanHandle(String s) {
 
 class Profile {
   final String uid, name, handle, bio, photo, cover;
+  final bool isAdmin;
   Profile({
     required this.uid,
     required this.name,
@@ -32,6 +33,7 @@ class Profile {
     this.bio = '',
     this.photo = '',
     this.cover = '',
+    this.isAdmin = false,
   });
 
   factory Profile.fromMap(String uid, Map<String, dynamic> m) => Profile(
@@ -41,6 +43,7 @@ class Profile {
         bio: (m['bio'] ?? '').toString(),
         photo: (m['photo'] ?? '').toString(),
         cover: (m['cover'] ?? '').toString(),
+        isAdmin: m['isAdmin'] == true,
       );
 
   late final ImageProvider? image = _imageOf(photo);

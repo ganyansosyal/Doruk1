@@ -12,6 +12,9 @@ import 'tjk.dart';
 const _gun = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
 const _ay = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
 
+/// Akıştaki "Sıradaki koşu" kartı: Tahmin Yap'ta bu şehir + koşuyu açar.
+final ValueNotifier<({String city, int race})?> predictJump = ValueNotifier(null);
+
 String isoLabel(String iso) {
   final p = iso.split('-').map(int.parse).toList();
   final d = DateTime(p[0], p[1], p[2]);
@@ -109,6 +112,23 @@ class _PredictPageState extends State<PredictPage> {
       _race = _nextRace(_city);
       _autoFix(silent: true);
       _goFirstLeg();
+    }
+    _applyJump();
+  }
+
+  void _applyJump() {
+    final j = predictJump.value;
+    if (j == null || s.cities.isEmpty) return;
+    predictJump.value = null;
+    if (!s.cities.any((c) => c.name == j.city)) return;
+    _city = j.city;
+    _race = j.race;
+    _slot = 0;
+    if (_t.mode == 'legs' && !_lr.contains(j.race)) {
+      _t = kTypes.firstWhere((t) => t.k == 'g1');
+      _sel.clear();
+    } else if (_t.mode == 'race' && _sel.any((x) => x.r != j.race)) {
+      _sel.clear();
     }
   }
 

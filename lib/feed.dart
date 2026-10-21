@@ -1,12 +1,16 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'auth_service.dart';
 import 'bets.dart';
 import 'scoring.dart';
 import 'profile.dart';
-import 'shell.dart' show IconBox;
+import 'settle.dart' show isAdminNotifier;
 import 'theme.dart';
+import 'tjk.dart' show TjkStore, Race, isoToday;
 
 FirebaseFirestore get _db => FirebaseFirestore.instance;
 String get _myUid => profileNotifier.value?.uid ?? '';
@@ -132,22 +136,80 @@ Future<void> toggleFollow(String t, bool f) => _toggleFollow(t, f);
 /* ---------------- Akış sayfası ---------------- */
 
 class FeedPage extends StatefulWidget {
-  const FeedPage({super.key});
+  final void Function(String city, int race)? onOpenRace;
+  final VoidCallback? onOpenLeaders;
+  const FeedPage({super.key, this.onOpenRace, this.onOpenLeaders});
   @override
   State<FeedPage> createState() => _FeedPageState();
 }
+
+typedef _RankRow = ({String uid, Profile p, Score s});
+
+String _postDay(Post p) {
+  final i = (p.coupon?['iso'] ?? '').toString();
+  if (i.isNotEmpty) return i;
+  final t = DateTime.fromMillisecondsSinceEpoch(p.ts);
+  return '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')}';
+}
+
+// 6'lı Ganyan: tüm koşuların sonucu belli olana kadar kupon "kaybeden" sayılmaz
+bool _altiliBekler(Post p) {
+  final c = p.coupon;
+  if (c == null) return false;
+  final vir = c['vir'];
+  if (vir is num && vir > 0) return false;
+  if ((p.d['mark'] ?? '').toString() == 'lose') return false;
+  final legs = ((c['legs'] as List?) ?? const []).whereType<Map>().toList();
+  return legs.length == 6 && RegExp('ganyan', caseSensitive: false).hasMatch((c['type'] ?? '').toString()) && legs.any((l) => legSt(c, l) == 'p');
+}
+
+bool _isWon(Post p) => postStatus(p) == 'win';
+bool _isLost(Post p) => postStatus(p) == 'lose' && !_altiliBekler(p);
 
 class _FeedPageState extends State<FeedPage> {
   String _filter = 'all';
   final _ctl = TextEditingController();
   bool _busy = false;
 
+  final _subs = <StreamSubscription>[];
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _users = [];
+  Map<String, double> _bonus = {};
+  Set<String> _mods = {};
+  int _ver = 0, _rankVer = -1;
+  Object? _rankSnap;
+  List<_RankRow> _rank = const [];
+
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _posts =
       _db.collection('posts').orderBy('ts', descending: true).limit(100).snapshots();
   late final Stream<DocumentSnapshot<Map<String, dynamic>>> _me = _db.collection('users').doc(_myUid).snapshots();
 
   @override
+  void initState() {
+    super.initState();
+    TjkStore.i.ensureLoaded();
+    void bump() {
+      if (mounted) setState(() => _ver++);
+    }
+
+    _subs.add(_db.collection('users').limit(300).snapshots().listen((s) {
+      _users = s.docs;
+      bump();
+    }, onError: (_) {}));
+    _subs.add(_db.collection('grants').limit(500).snapshots().listen((s) {
+      _bonus = {for (final d in s.docs) d.id: ((d.data()['pts'] as num?)?.toDouble() ?? 0) + ((d.data()['keep'] as num?)?.toDouble() ?? 0)};
+      bump();
+    }, onError: (_) {}));
+    _subs.add(_db.collection('mods').limit(100).snapshots().listen((s) {
+      _mods = s.docs.map((d) => d.id).toSet();
+      bump();
+    }, onError: (_) {}));
+  }
+
+  @override
   void dispose() {
+    for (final s in _subs) {
+      s.cancel();
+    }
     _ctl.dispose();
     super.dispose();
   }
@@ -178,13 +240,33 @@ class _FeedPageState extends State<FeedPage> {
     }
   }
 
+  void _syncRank(Object snap, List<Post> posts) {
+    if (identical(_rankSnap, snap) && _rankVer == _ver) return;
+    _rankSnap = snap;
+    _rankVer = _ver;
+    final rows = _users
+        .map((d) => (uid: d.id, p: Profile.fromMap(d.id, d.data()), s: scoreOf(d.id, posts, d.data()['hist'] as Map?, _bonus[d.id] ?? 0)))
+        .where((x) => x.s.pts > 0)
+        .toList()
+      ..sort((a, b) {
+        final k = b.s.pts.compareTo(a.s.pts);
+        if (k != 0) return k;
+        final r = b.s.pct.compareTo(a.s.pct);
+        if (r != 0) return r;
+        return a.p.name.compareTo(b.p.name);
+      });
+    _rank = rows;
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = AppColors.of(context);
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: _me,
       builder: (context, meSnap) {
-        final following = ((meSnap.data?.data()?['following'] as List?) ?? const []).map((e) => e.toString()).toSet();
+        final meData = meSnap.data?.data();
+        final following = ((meData?['following'] as List?) ?? const []).map((e) => e.toString()).toSet();
+        final tracked = ((meData?['trackedPosts'] as List?) ?? const []).map((e) => e.toString()).toSet();
         return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
           stream: _posts,
           builder: (context, snap) {
@@ -192,29 +274,86 @@ class _FeedPageState extends State<FeedPage> {
               return Center(child: Text(AuthService.errorText(snap.error!), style: jakarta(14, FontWeight.w600, c.mu)));
             }
             if (!snap.hasData) return Center(child: CircularProgressIndicator(color: c.ac));
-            var list = snap.data!.docs.map((d) => Post(d.id, d.data())).where((p) => !p.hidden).toList();
-            if (_filter == 'mine') list = list.where((p) => p.uid == _myUid).toList();
+            final all = snap.data!.docs.map((d) => Post(d.id, d.data())).toList();
+            _syncRank(snap.data!, all);
+            final visible = all.where((p) => !p.hidden).toList();
+            final today = isoToday();
+            final day = visible.where((p) => _postDay(p) == today).toList();
+
+            // sayaçlar (web ile aynı)
+            final fc = <String, int>{
+              'all': day.where((p) => !_isLost(p) && !_isWon(p)).length,
+              'lost': day.where(_isLost).length,
+              'winners': day.where(_isWon).length,
+              'follow': day.where((p) => following.contains(p.uid) && !_isLost(p) && !_isWon(p)).length,
+              'mine': visible.where((p) => p.uid == _myUid).length,
+              'tracked': visible.where((p) => p.coupon != null && p.uid != _myUid && tracked.contains(p.id)).length,
+            };
+
+            var list = (_filter == 'tracked' || _filter == 'mine') ? visible : day;
+            if (_filter == 'winners') list = list.where(_isWon).toList();
+            if (_filter == 'lost') list = list.where(_isLost).toList();
+            if (_filter == 'tracked') list = list.where((p) => p.coupon != null && p.uid != _myUid && tracked.contains(p.id)).toList();
             if (_filter == 'follow') list = list.where((p) => following.contains(p.uid)).toList();
+            if (_filter == 'mine') list = list.where((p) => p.uid == _myUid).toList();
+            if (_filter != 'tracked' && _filter != 'mine' && _filter != 'lost') list = list.where((p) => !_isLost(p)).toList();
+            if (_filter == 'all' || _filter == 'follow') list = list.where((p) => !_isWon(p)).toList();
+
+            // Sıralama: tuttu > devam > bekliyor > kaybetti > kuponsuz; eşitlikte puan, etkileşim, yenilik
+            const rk = {'win': 4, 'live': 3, 'wait': 2, 'lose': 1};
+            int rankOf(Post p) => p.coupon == null ? 0 : (rk[postStatus(p)] ?? 2);
+            int hits(Post p) => p.coupon == null ? 0 : couponStatus(p.coupon!).h;
+            double cpts(Post p) => p.coupon == null ? 0 : couponPts(p.coupon!).pts;
+            int eng(Post p) => p.likes + p.comments.length;
+            list = list.toList()
+              ..sort(_filter == 'mine'
+                  ? (a, b) => b.ts.compareTo(a.ts)
+                  : (a, b) {
+                      var k = rankOf(b).compareTo(rankOf(a));
+                      if (k != 0) return k;
+                      k = hits(b).compareTo(hits(a));
+                      if (k != 0) return k;
+                      k = cpts(b).compareTo(cpts(a));
+                      if (k != 0) return k;
+                      k = eng(b).compareTo(eng(a));
+                      if (k != 0) return k;
+                      return b.ts.compareTo(a.ts);
+                    });
+
+            final myDoc = _users.where((d) => d.id == _myUid).toList();
+            final myHist = myDoc.isNotEmpty ? myDoc.first.data()['hist'] as Map? : null;
+            final myScore = scoreOf(_myUid, all, myHist, _bonus[_myUid] ?? 0);
+            final myRank = _rank.indexWhere((x) => x.uid == _myUid);
+            final dk = dayKey(DateTime.now().millisecondsSinceEpoch);
+            var bugun = scoreDays(_myUid, all)[dk]?.pts ?? 0;
+            final hd = myHist?[dk];
+            if (hd is Map) bugun += (hd['p'] as num?)?.toDouble() ?? 0;
+            if (bugun > gunlukTavan) bugun = gunlukTavan;
+
             final head = <Widget>[
-              _composer(c),
+              _topRow(c, myScore, myRank, bugun),
+              const SizedBox(height: 10),
+              _NextRaceBar(onOpen: widget.onOpenRace),
+              _people(c, following),
+              _filters(c, fc),
               const SizedBox(height: 12),
-              Row(children: [
-                _chip(c, 'all', 'Akış', Icons.home_outlined),
-                const SizedBox(width: 8),
-                _chip(c, 'mine', 'Paylaştıklarım', Icons.person_outline),
-                const SizedBox(width: 8),
-                _chip(c, 'follow', 'Takip', Icons.favorite_border),
-              ]),
+              _composer(c),
               const SizedBox(height: 14),
               if (list.isEmpty)
                 Padding(
                   padding: const EdgeInsets.all(28),
                   child: Text(
                     _filter == 'follow'
-                        ? 'Takip ettiğin kimsenin paylaşımı yok.'
+                        ? 'Takip ettiğin kimsenin paylaşımı yok. Yukarıdan tahmincileri takip edebilirsin.'
                         : _filter == 'mine'
-                            ? 'Henüz bir şey paylaşmadın.'
-                            : 'Henüz paylaşım yok. İlk paylaşımı sen yap!',
+                            ? 'Henüz bir şey paylaşmadın. Paylaştığın kuponlar, tutmasa bile burada durur.'
+                            : _filter == 'lost'
+                                ? 'Bugün kaybeden kupon yok.'
+                                : _filter == 'winners'
+                                    ? 'Bugün tutan kupon yok.'
+                                    : _filter == 'tracked'
+                                        ? 'Takip ettiğin kupon yok. Bir kuponun altındaki "Kuponu takip et" düğmesine bas.'
+                                        : 'Henüz paylaşım yok. İlk kuponunu sen paylaş!',
                     textAlign: TextAlign.center,
                     style: jakarta(14, FontWeight.w600, c.mu),
                   ),
@@ -230,7 +369,13 @@ class _FeedPageState extends State<FeedPage> {
                 final p = list[i - head.length];
                 return RepaintBoundary(
                   key: ValueKey(p.id),
-                  child: PostCard(key: ValueKey(p.id), post: p, following: following.contains(p.uid)),
+                  child: PostCard(
+                    key: ValueKey(p.id),
+                    post: p,
+                    following: following.contains(p.uid),
+                    tracked: tracked.contains(p.id),
+                    isMod: _mods.contains(p.uid),
+                  ),
                 );
               },
             );
@@ -240,30 +385,251 @@ class _FeedPageState extends State<FeedPage> {
     );
   }
 
-  Widget _chip(AppColors c, String k, String label, IconData ic) {
-    final on = _filter == k;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _filter = k),
-        child: Container(
-          height: 42,
-          decoration: BoxDecoration(
-            color: on ? c.ac.withAlpha(30) : c.sf,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: on ? c.ac : c.ln),
-          ),
-          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(ic, size: 17, color: c.ac),
-            const SizedBox(width: 5),
-            Flexible(
-              child: Text(label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: jakarta(12.5, FontWeight.w700, on ? c.ac : c.tx)),
+  /* ---- üst kısım ---- */
+
+  Widget _topRow(AppColors c, Score sc, int rank, double bugun) {
+    final me = profileNotifier.value;
+    return SizedBox(
+      height: 112,
+      child: Row(children: [
+        Expanded(
+          flex: 11,
+          child: GestureDetector(
+            onTap: () {
+              if (me != null) Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileRoute(uid: me.uid)));
+            },
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: c.ac.withAlpha(20), borderRadius: BorderRadius.circular(22), border: Border.all(color: c.ac.withAlpha(90))),
+              child: Row(children: [
+                Avatar(profile: me, size: 58),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(me?.name ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(17, FontWeight.w800, c.tx)),
+                    Text('@${me?.handle ?? ''}', maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(13, FontWeight.w600, c.mu)),
+                    const SizedBox(height: 6),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(value: (bugun / gunlukTavan).clamp(0.0, 1.0), minHeight: 6, backgroundColor: c.ln, color: c.ac),
+                    ),
+                    const SizedBox(height: 4),
+                    Text('Bugün ${fmtPts(bugun)} / ${fmtPts(gunlukTavan)} puan', maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(12, FontWeight.w600, c.mu)),
+                  ]),
+                ),
+                Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Text(fmtPts(sc.pts), style: jakarta(26, FontWeight.w800, c.ac)),
+                  Text('puan', style: jakarta(12, FontWeight.w600, c.mu)),
+                  if (rank > -1) Text('#${rank + 1}. sıra', style: jakarta(11, FontWeight.w800, c.gold)),
+                ]),
+              ]),
             ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          flex: 8,
+          child: GestureDetector(
+            onTap: () => launchUrl(Uri.parse('https://www.youtube.com/watch?v=I1FgwiDqpS8'), mode: LaunchMode.externalApplication),
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: c.red.withAlpha(16), borderRadius: BorderRadius.circular(22), border: Border.all(color: c.red.withAlpha(70))),
+              child: Row(children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(color: c.red, borderRadius: BorderRadius.circular(14)),
+                  child: const Icon(Icons.live_tv, color: Colors.white, size: 24),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Canlı yayın', maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(15, FontWeight.w800, c.tx)),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(color: c.red, borderRadius: BorderRadius.circular(10)),
+                      child: Text('İZLE', style: jakarta(12, FontWeight.w800, Colors.white)),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _people(AppColors c, Set<String> following) {
+    final top = _rank.take(5).toList();
+    return Padding(
+      padding: const EdgeInsets.only(top: 14, bottom: 6),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(child: Text('Öne Çıkan Tahminciler', style: jakarta(20, FontWeight.w800, c.tx))),
+          Text('Puana göre', style: jakarta(13, FontWeight.w600, c.mu)),
+        ]),
+        const SizedBox(height: 10),
+        if (top.isEmpty)
+          Text('Henüz puan alan yok. Kuponu tutan ilk kişi burada görünecek.', style: jakarta(13.5, FontWeight.w500, c.mu))
+        else
+          SizedBox(
+            height: 156,
+            child: ListView(scrollDirection: Axis.horizontal, clipBehavior: Clip.none, children: [
+              for (var i = 0; i < top.length; i++) _person(c, i, top[i], following),
+              if (_rank.length > 5) _allItem(c),
+            ]),
+          ),
+      ]),
+    );
+  }
+
+  Widget _allItem(AppColors c) => GestureDetector(
+        onTap: widget.onOpenLeaders,
+        child: SizedBox(
+          width: 82,
+          child: Column(children: [
+            const SizedBox(height: 6),
+            Container(
+              width: 64,
+              height: 64,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: c.sf, border: Border.all(color: c.ln, width: 2)),
+              child: Icon(Icons.chevron_right, size: 32, color: c.ac),
+            ),
+            const SizedBox(height: 8),
+            Text('Tümü', style: jakarta(13.5, FontWeight.w800, c.tx)),
+            Text('Sıralama', style: jakarta(11.5, FontWeight.w600, c.mu)),
           ]),
         ),
+      );
+
+  Widget _person(AppColors c, int i, _RankRow x, Set<String> following) {
+    final isMe = x.uid == _myUid;
+    final fol = following.contains(x.uid);
+    final ring = i == 0
+        ? const [Color(0xFFFFE08A), Color(0xFFD49A14)]
+        : i == 1
+            ? const [Color(0xFFF7FAFF), Color(0xFF9AA6B8)]
+            : i == 2
+                ? const [Color(0xFFF0B987), Color(0xFFA4642C)]
+                : null;
+    final rkCol = i == 0 ? const Color(0xFFD49A14) : i == 1 ? const Color(0xFF9AA6B8) : i == 2 ? const Color(0xFFA4642C) : const Color(0xFF8A94A6);
+    final first = x.p.name.trim().split(' ').first;
+    return GestureDetector(
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileRoute(uid: x.uid))),
+      child: SizedBox(
+        width: 82,
+        child: Column(children: [
+          SizedBox(
+            width: 72,
+            height: 72,
+            child: Stack(clipBehavior: Clip.none, children: [
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: ring == null ? null : LinearGradient(colors: ring, begin: Alignment.topLeft, end: Alignment.bottomRight),
+                    border: ring == null ? Border.all(color: c.ln, width: 2) : null,
+                  ),
+                  child: Avatar(profile: x.p, size: 60),
+                ),
+              ),
+              Positioned(
+                left: -2,
+                top: -2,
+                child: Container(
+                  width: 22,
+                  height: 22,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(color: rkCol, shape: BoxShape.circle, border: Border.all(color: c.sf, width: 2)),
+                  child: Text('${i + 1}', style: jakarta(11, FontWeight.w800, Colors.white)),
+                ),
+              ),
+              if (!isMe && !fol)
+                Positioned(
+                  right: -2,
+                  bottom: -2,
+                  child: GestureDetector(
+                    onTap: () => _toggleFollow(x.uid, false).catchError((e) {
+                      if (mounted) _toast(context, AuthService.errorText(e));
+                    }),
+                    child: Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(color: c.ac, shape: BoxShape.circle, border: Border.all(color: c.sf, width: 2)),
+                      child: const Icon(Icons.add, size: 16, color: Colors.white),
+                    ),
+                  ),
+                ),
+            ]),
+          ),
+          const SizedBox(height: 6),
+          Text(isMe ? 'Sen' : first, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(13.5, FontWeight.w800, c.tx)),
+          Text('${fmtPts(x.s.pts)} puan', style: jakarta(12.5, FontWeight.w800, c.ac)),
+          Text(x.s.tot > 0 ? '%${x.s.pct} isabet' : 'henüz yok', style: jakarta(11.5, FontWeight.w600, c.mu)),
+        ]),
       ),
+    );
+  }
+
+  Widget _filters(AppColors c, Map<String, int> fc) {
+    const items = <(String, String, IconData, Color?)>[
+      ('all', 'Akış', Icons.home_outlined, null),
+      ('mine', 'Paylaştıklarım', Icons.person_outline, null),
+      ('lost', 'Kaybedenler', Icons.cancel_outlined, Color(0xFFE0305A)),
+      ('follow', 'Takip Ettiklerim', Icons.favorite_border, Color(0xFFE0305A)),
+      ('winners', 'Tutanlar', Icons.emoji_events_outlined, Color(0xFFD97706)),
+      ('tracked', 'Kupon Takip', Icons.bookmark_border, Color(0xFF0EA5E9)),
+    ];
+    Widget chip((String, String, IconData, Color?) it) {
+      final on = _filter == it.$1;
+      final col = it.$4 ?? c.ac;
+      final n = fc[it.$1] ?? 0;
+      return Expanded(
+        child: GestureDetector(
+          onTap: () => setState(() => _filter = it.$1),
+          child: Stack(clipBehavior: Clip.none, children: [
+            Container(
+              height: 46,
+              decoration: BoxDecoration(
+                color: on ? col.withAlpha(30) : c.sf,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: on ? col : c.ln, width: on ? 1.5 : 1),
+              ),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(it.$3, size: 18, color: col),
+                const SizedBox(width: 5),
+                Flexible(child: Text(it.$2, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(12.5, FontWeight.w700, on ? col : c.tx))),
+              ]),
+            ),
+            if (n > 0)
+              Positioned(
+                right: -2,
+                top: -8,
+                child: Container(
+                  constraints: const BoxConstraints(minWidth: 22),
+                  height: 22,
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(color: col, shape: BoxShape.rectangle, borderRadius: BorderRadius.circular(11), border: Border.all(color: c.bg, width: 2)),
+                  child: Text(n > 99 ? '99+' : '$n', style: jakarta(11, FontWeight.w800, Colors.white)),
+                ),
+              ),
+          ]),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(children: [
+        Row(children: [chip(items[0]), const SizedBox(width: 8), chip(items[1]), const SizedBox(width: 8), chip(items[2])]),
+        const SizedBox(height: 12),
+        Row(children: [chip(items[3]), const SizedBox(width: 8), chip(items[4]), const SizedBox(width: 8), chip(items[5])]),
+      ]),
     );
   }
 
@@ -300,12 +666,93 @@ class _FeedPageState extends State<FeedPage> {
   }
 }
 
+/* ---------------- Sıradaki koşu şeridi ---------------- */
+
+class _NextRaceBar extends StatefulWidget {
+  final void Function(String city, int race)? onOpen;
+  const _NextRaceBar({this.onOpen});
+  @override
+  State<_NextRaceBar> createState() => _NextRaceBarState();
+}
+
+class _NextRaceBarState extends State<_NextRaceBar> {
+  final s = TjkStore.i;
+  Timer? _t;
+
+  @override
+  void initState() {
+    super.initState();
+    s.addListener(_u);
+    _t = Timer.periodic(const Duration(seconds: 1), (_) => _u());
+  }
+
+  @override
+  void dispose() {
+    _t?.cancel();
+    s.removeListener(_u);
+    super.dispose();
+  }
+
+  void _u() {
+    if (mounted) setState(() {});
+  }
+
+  ({String city, Race r, DateTime d})? _next() {
+    if (!s.isToday) return null;
+    final now = DateTime.now();
+    ({String city, Race r, DateTime d})? best;
+    for (final c in s.cities) {
+      for (final r in s.races(c.name)) {
+        final m = RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(r.saat);
+        if (m == null) continue;
+        final d = DateTime(now.year, now.month, now.day, int.parse(m.group(1)!), int.parse(m.group(2)!));
+        if (d.isAfter(now) && (best == null || d.isBefore(best.d))) best = (city: c.name, r: r, d: d);
+      }
+    }
+    return best;
+  }
+
+  String _left(int sec) {
+    String p2(int n) => n.toString().padLeft(2, '0');
+    final h = sec ~/ 3600, m = sec % 3600 ~/ 60, sc = sec % 60;
+    return h > 0 ? '$h sa ${p2(m)} dk' : m > 0 ? '$m dk ${p2(sc)} sn' : '$sc sn';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final n = _next();
+    if (n == null) return const SizedBox.shrink();
+    final c = AppColors.of(context);
+    final left = n.d.difference(DateTime.now()).inSeconds.clamp(0, 999999);
+    return GestureDetector(
+      onTap: () => widget.onOpen?.call(n.city, n.r.no),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(color: c.ac.withAlpha(14), borderRadius: BorderRadius.circular(20), border: Border.all(color: c.ac.withAlpha(90))),
+        child: Row(children: [
+          Text('SIRADAKİ KOŞU', style: jakarta(11, FontWeight.w800, c.ac).copyWith(letterSpacing: 1.1)),
+          const SizedBox(width: 10),
+          Expanded(child: Text('${n.city} ${n.r.no}. koşu · ${n.r.saat}', maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(15.5, FontWeight.w800, c.tx))),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(color: c.sf, borderRadius: BorderRadius.circular(14), border: Border.all(color: c.ln)),
+            child: Text(_left(left), style: jakarta(14, FontWeight.w800, c.gold)),
+          ),
+          const SizedBox(width: 4),
+          Icon(Icons.chevron_right, color: c.mu),
+        ]),
+      ),
+    );
+  }
+}
+
 /* ---------------- Paylaşım kartı ---------------- */
 
 class PostCard extends StatelessWidget {
   final Post post;
-  final bool following;
-  const PostCard({super.key, required this.post, required this.following});
+  final bool following, tracked, isMod;
+  const PostCard({super.key, required this.post, required this.following, this.tracked = false, this.isMod = false});
 
   Future<void> _delete(BuildContext context) async {
     final c = AppColors.of(context);
@@ -337,14 +784,21 @@ class PostCard extends StatelessWidget {
     final liked = p.likedBy.contains(_myUid);
     final mine = p.uid == _myUid;
     final cp = p.coupon;
+    final pst = cp == null ? '' : postStatus(p);
+    final stripe = cp == null ? null : pst == 'win' ? const Color(0xFF16A34A) : pst == 'lose' ? c.red : c.gold;
+    final canDelete = (mine && cp == null) || isAdminNotifier.value;
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(14),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: c.sf,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: c.ln),
       ),
+      child: Stack(children: [
+        if (stripe != null) Positioned(left: 0, top: 0, bottom: 0, width: 5, child: ColoredBox(color: stripe)),
+        Padding(
+      padding: EdgeInsets.fromLTRB(stripe != null ? 17 : 14, 14, 14, 14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         FutureBuilder<Profile?>(
           future: _Profiles.of(p.uid),
@@ -364,6 +818,19 @@ class PostCard extends StatelessWidget {
                   Text(p.authorName.isNotEmpty ? p.authorName : (pr?.name ?? '...'),
                       maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(15, FontWeight.w800, c.tx)),
                   Text(fmtStamp(p.ts), style: jakarta(12, FontWeight.w500, c.mu)),
+                  if (pr?.isAdmin == true || isMod)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 5),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                        decoration: BoxDecoration(color: const Color(0xFF8B3FD9), borderRadius: BorderRadius.circular(12)),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(pr?.isAdmin == true ? Icons.lock_outline : Icons.block, size: 13, color: Colors.white),
+                          const SizedBox(width: 4),
+                          Text(pr?.isAdmin == true ? 'Yönetici' : 'Moderatör', style: jakarta(12, FontWeight.w800, Colors.white)),
+                        ]),
+                      ),
+                    ),
                 ]),
                 ),
               ),
@@ -383,9 +850,17 @@ class PostCard extends StatelessWidget {
                         style: jakarta(13, FontWeight.w800, following ? c.mu : c.on)),
                   ),
                 ),
-              if (mine && cp == null) ...[
+              if (canDelete) ...[
                 const SizedBox(width: 6),
-                IconBox(icon: Icons.delete_outline, size: 38, onTap: () => _delete(context)),
+                GestureDetector(
+                  onTap: () => _delete(context),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(color: c.red.withAlpha(24), borderRadius: BorderRadius.circular(14)),
+                    child: Icon(Icons.delete_outline, size: 22, color: c.red),
+                  ),
+                ),
               ],
             ]);
           },
@@ -404,10 +879,38 @@ class PostCard extends StatelessWidget {
           }),
           const SizedBox(width: 18),
           _act(c, Icons.chat_bubble_outline, '${p.comments.length}', c.mu, () => openComments(context, p.id, p.uid)),
+          if (cp != null && !mine) ...[
+            const Spacer(),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _toggleTrack(p.id, !tracked).catchError((e) {
+                if (context.mounted) _toast(context, AuthService.errorText(e));
+              }),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                decoration: BoxDecoration(
+                  color: tracked ? const Color(0xFF0EA5E9).withAlpha(30) : c.sf2,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: tracked ? const Color(0xFF0EA5E9) : c.ln),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(tracked ? Icons.bookmark : Icons.bookmark_border, size: 17, color: const Color(0xFF0EA5E9)),
+                  const SizedBox(width: 4),
+                  Text(tracked ? 'Takip ediliyor' : 'Kuponu takip et', style: jakarta(12, FontWeight.w800, tracked ? const Color(0xFF0EA5E9) : c.mu)),
+                ]),
+              ),
+            ),
+          ],
         ]),
+      ]),
+        ),
       ]),
     );
   }
+
+  static Future<void> _toggleTrack(String postId, bool on) => _db.collection('users').doc(_myUid).update({
+        'trackedPosts': on ? FieldValue.arrayUnion([postId]) : FieldValue.arrayRemove([postId]),
+      });
 
   Widget _act(AppColors c, IconData ic, String n, Color col, VoidCallback onTap) {
     return GestureDetector(
