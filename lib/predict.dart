@@ -968,13 +968,14 @@ Widget _horseDetail(AppColors c, Horse h, String key) {
         final gop = snapshot.data;
         if (gop == null) return const SizedBox.shrink();
         return Container(
+          width: double.infinity,
           margin: const EdgeInsets.only(top: 6),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(color: const Color(0xFF2563EB).withAlpha(20), borderRadius: BorderRadius.circular(10)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Son galop · ${gop.t}', style: jakarta(10, FontWeight.w800, const Color(0xFF2563EB))),
+            Text('Son galop · ${gop.t}', maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(10, FontWeight.w800, const Color(0xFF2563EB))),
             const SizedBox(height: 2),
-            Text(gop.d, style: jakarta(12, FontWeight.w800, const Color(0xFF2563EB))),
+            Text(gop.d, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(12, FontWeight.w800, const Color(0xFF2563EB))),
             const SizedBox(height: 2),
             Text(gop.y, style: jakarta(9.5, FontWeight.w600, const Color(0xFF2563EB))),
           ]),
