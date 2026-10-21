@@ -119,7 +119,7 @@ class _ShellState extends State<Shell> {
                       _NavItem(icon: Icons.home_outlined, label: 'Akış', on: _tab == 0, onTap: () => setState(() => _tab = 0)),
                       _NavItem(icon: Icons.emoji_events_outlined, label: 'Liderler', on: _tab == 1, onTap: () => setState(() => _tab = 1)),
                       _NavItem(icon: Icons.format_list_bulleted, label: 'Tahmin Yap', on: _tab == 2, onTap: () => setState(() => _tab = 2)),
-                      const SizedBox(width: 56),
+                      const SizedBox(width: 48),
                       _NavItem(icon: Icons.flag_outlined, label: 'Sonuçlar', on: _tab == 3, onTap: () => setState(() => _tab = 3)),
                       _NavItem(icon: Icons.person_outline, label: 'Profilim', on: _tab == 4, onTap: () => setState(() => _tab = 4)),
                       _NavItem(icon: Icons.power_settings_new, label: 'Çıkış', on: false, danger: true, onTap: () => confirmSignOut(context)),
@@ -132,14 +132,14 @@ class _ShellState extends State<Shell> {
           Positioned(
             left: 0,
             right: 0,
-            bottom: bottom + 18,
+            bottom: bottom + 14,
             child: Center(
               child: GestureDetector(
                 onTap: () => openChat(context),
                 child: Container(
-                  width: 66,
-                  height: 66,
-                  padding: const EdgeInsets.all(5),
+                  width: 54,
+                  height: 54,
+                  padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: c.sf,
@@ -156,7 +156,7 @@ class _ShellState extends State<Shell> {
                         colors: [Color(0xFF34D399), Color(0xFF0E9F73)],
                       ),
                     ),
-                    child: const Icon(Icons.forum_rounded, color: Colors.white, size: 27),
+                    child: const Icon(Icons.forum_rounded, color: Colors.white, size: 22),
                   ),
                 ),
               ),
