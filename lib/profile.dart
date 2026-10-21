@@ -14,7 +14,6 @@ import 'theme.dart';
 FirebaseFirestore get _db => FirebaseFirestore.instance;
 String get _me => profileNotifier.value?.uid ?? '';
 
-/// Başka ekrandan açılan profil (geri düğmeli).
 class ProfileRoute extends StatelessWidget {
   final String uid;
   const ProfileRoute({super.key, required this.uid});
@@ -26,11 +25,11 @@ class ProfileRoute extends StatelessWidget {
       body: SafeArea(
         child: Column(children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
             child: Row(children: [
               IconBox(icon: Icons.arrow_back, onTap: () => Navigator.pop(context)),
-              const SizedBox(width: 10),
-              const Brand(size: 19),
+              const SizedBox(width: 8),
+              const Brand(size: 18),
             ]),
           ),
           Expanded(child: ProfileView(uid: uid)),
@@ -75,9 +74,7 @@ class _ProfileViewState extends State<ProfileView> {
 
   @override
   void dispose() {
-    for (final s in _subs) {
-      s.cancel();
-    }
+    for (final s in _subs) { s.cancel(); }
     super.dispose();
   }
 
@@ -91,71 +88,171 @@ class _ProfileViewState extends State<ProfileView> {
     }).toList();
   }
 
+  Color _hexColor(String hex) {
+    hex = hex.replaceAll('#', '');
+    if (hex.length == 6) hex = 'FF$hex';
+    return Color(int.parse(hex, radix: 16));
+  }
+
   Future<void> _edit() async {
     final p = Profile.fromMap(widget.uid, _u ?? {});
     final name = TextEditingController(text: p.name);
     final bio = TextEditingController(text: p.bio);
     String photo = p.photo;
+    String bioColor = p.bioColor ?? '';
     final c = AppColors.of(context);
+    const colors = ['', '#0E9F73', '#2563EB', '#7C3AED', '#DB2777', '#E0305A', '#EA580C', '#B87F00', '#0891B2'];
+
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: c.bg,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(26))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => StatefulBuilder(builder: (ctx, setS) {
         return Padding(
-          padding: EdgeInsets.fromLTRB(18, 18, 18, 18 + MediaQuery.of(ctx).viewInsets.bottom),
+          padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(ctx).viewInsets.bottom),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Profili Düzenle', style: jakarta(18, FontWeight.w800, c.tx)),
-            const SizedBox(height: 14),
-            Row(children: [
-              Avatar(profile: Profile(uid: p.uid, name: name.text, handle: p.handle, photo: photo), size: 64),
-              const SizedBox(width: 12),
-              TextButton(
-                onPressed: () async {
-                  final x = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 320, maxHeight: 320, imageQuality: 70);
-                  if (x == null) return;
-                  final b = await x.readAsBytes();
-                  setS(() => photo = 'data:image/jpeg;base64,${base64Encode(b)}');
-                },
-                child: Text('Fotoğraf seç', style: jakarta(14, FontWeight.w800, c.ac)),
-              ),
-              if (photo.isNotEmpty)
-                TextButton(onPressed: () => setS(() => photo = ''), child: Text('Kaldır', style: jakarta(14, FontWeight.w700, c.red))),
-            ]),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Profili Düzenle', style: jakarta(18, FontWeight.w800, c.tx)),
+                IconButton(onPressed: () => Navigator.pop(ctx), icon: Icon(Icons.close, color: c.tx)),
+              ],
+            ),
             const SizedBox(height: 10),
+            Row(children: [
+              Stack(
+                children: [
+                  Avatar(profile: Profile(uid: p.uid, name: name.text, handle: p.handle, photo: photo), size: 72),
+                  Positioned(
+                    bottom: 0, right: 0,
+                    child: GestureDetector(
+                      onTap: () async {
+                        final x = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 320, maxHeight: 320, imageQuality: 70);
+                        if (x == null) return;
+                        final b = await x.readAsBytes();
+                        setS(() => photo = 'data:image/jpeg;base64,${base64Encode(b)}');
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(color: c.ac, shape: BoxShape.circle, border: Border.all(color: c.bg, width: 2)),
+                        child: const Icon(Icons.camera_alt, color: Colors.white, size: 14),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ]),
+            const SizedBox(height: 16),
+            Text('Ad', style: jakarta(12, FontWeight.w700, c.mu)),
+            const SizedBox(height: 4),
             TextField(
               controller: name,
               maxLength: nameMax,
-              decoration: const InputDecoration(labelText: 'Ad', border: OutlineInputBorder()),
+              style: jakarta(14, FontWeight.w600, c.tx),
+              decoration: InputDecoration(
+                filled: true, fillColor: c.sf2, counterText: '',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 12),
+            Text('Kullanıcı adı', style: jakarta(12, FontWeight.w700, c.mu)),
+            const SizedBox(height: 4),
+            TextField(
+              controller: TextEditingController(text: '@${p.handle}'),
+              readOnly: true,
+              style: jakarta(14, FontWeight.w600, c.mu),
+              decoration: InputDecoration(
+                filled: true, fillColor: c.sf2,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text('Biyografi', style: jakarta(12, FontWeight.w700, c.mu)),
+            const SizedBox(height: 4),
             TextField(
               controller: bio,
-              maxLength: 150,
+              maxLength: 160,
               maxLines: 3,
-              decoration: const InputDecoration(labelText: 'Biyografi', border: OutlineInputBorder()),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: c.ac, padding: const EdgeInsets.symmetric(vertical: 14)),
-                onPressed: () async {
-                  final n = name.text.trim();
-                  if (n.length < 2) return;
-                  try {
-                    await _db.collection('users').doc(widget.uid).update({'name': n, 'bio': bio.text.trim(), 'photo': photo});
-                    profileNotifier.value = await AuthService.loadProfile(widget.uid);
-                    if (ctx.mounted) Navigator.pop(ctx);
-                  } catch (e) {
-                    if (ctx.mounted) {
-                      ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(AuthService.errorText(e))));
-                    }
-                  }
-                },
-                child: Text('Kaydet', style: jakarta(15, FontWeight.w800, c.on)),
+              style: jakarta(14, FontWeight.w600, bioColor.isNotEmpty ? _hexColor(bioColor) : c.tx),
+              decoration: InputDecoration(
+                filled: true, fillColor: c.sf2,
+                hintText: 'Kendinden kısaca bahset...',
+                counterText: '',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               ),
+            ),
+            Align(alignment: Alignment.centerRight, child: Text('${bio.text.length}/160', style: jakarta(11, FontWeight.w600, c.mu))),
+            const SizedBox(height: 12),
+            Text('Biyografi yazı rengi', style: jakarta(12, FontWeight.w700, c.mu)),
+            const SizedBox(height: 8),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final col in colors)
+                    GestureDetector(
+                      onTap: () => setS(() => bioColor = col),
+                      child: Container(
+                        margin: const EdgeInsets.only(right: 12),
+                        width: 32, height: 32,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: col.isEmpty ? null : _hexColor(col),
+                          gradient: col.isEmpty ? const LinearGradient(colors: [Colors.black, Colors.grey], begin: Alignment.topCenter, end: Alignment.bottomCenter) : null,
+                          border: Border.all(color: bioColor == col ? c.ac : Colors.transparent, width: 2),
+                        ),
+                        child: bioColor == col ? Icon(Icons.circle, size: 12, color: col.isEmpty ? Colors.white : c.bg) : null,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      side: BorderSide(color: c.ln),
+                    ),
+                    child: Text('Vazgeç', style: jakarta(14, FontWeight.w800, c.mu)),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () async {
+                      final n = name.text.trim();
+                      if (n.length < 2) return;
+                      try {
+                        await _db.collection('users').doc(widget.uid).update({
+                          'name': n,
+                          'bio': bio.text.trim(),
+                          'bioColor': bioColor,
+                          'photo': photo,
+                        });
+                        profileNotifier.value = await AuthService.loadProfile(widget.uid);
+                        if (ctx.mounted) Navigator.pop(ctx);
+                      } catch (e) {
+                        if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(AuthService.errorText(e))));
+                      }
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: c.ac,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text('Kaydet', style: jakarta(14, FontWeight.w800, c.on)),
+                  ),
+                ),
+              ],
             ),
           ]),
         );
@@ -169,16 +266,16 @@ class _ProfileViewState extends State<ProfileView> {
       context: context,
       isScrollControlled: true,
       backgroundColor: c.bg,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(26))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => SizedBox(
         height: MediaQuery.of(ctx).size.height * 0.65,
         child: Column(children: [
-          const SizedBox(height: 14),
-          Text(title, style: jakarta(16, FontWeight.w800, c.tx)),
-          const SizedBox(height: 6),
+          const SizedBox(height: 12),
+          Text(title, style: jakarta(15, FontWeight.w800, c.tx)),
+          const SizedBox(height: 4),
           Expanded(
             child: uids.isEmpty
-                ? Center(child: Text('Kimse yok.', style: jakarta(14, FontWeight.w600, c.mu)))
+                ? Center(child: Text('Kimse yok.', style: jakarta(13, FontWeight.w600, c.mu)))
                 : ListView(children: [for (final u in uids) PersonTile(uid: u, onOpen: () {
                     Navigator.pop(ctx);
                     Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileRoute(uid: u)));
@@ -193,92 +290,90 @@ class _ProfileViewState extends State<ProfileView> {
   Widget build(BuildContext context) {
     final c = AppColors.of(context);
     if (!_loaded) return Center(child: CircularProgressIndicator(color: c.ac));
-    if (_u == null) return Center(child: Text('Kullanıcı bulunamadı.', style: jakarta(14, FontWeight.w600, c.mu)));
+    if (_u == null) return Center(child: Text('Kullanıcı bulunamadı.', style: jakarta(13, FontWeight.w600, c.mu)));
+    
     final p = Profile.fromMap(widget.uid, _u!);
     final mine = widget.uid == _me;
-        final following = ((_u!['following'] as List?) ?? const []).map((e) => e.toString()).toList();
+    final following = ((_u!['following'] as List?) ?? const []).map((e) => e.toString()).toList();
     final coupons = _posts.where((x) => x.coupon != null).toList();
-    final shown = _tab == 'k'
-        ? coupons
-        : _tab == 'w'
-            ? coupons.where((x) => postStatus(x) == 'win').toList()
-            : coupons.where((x) => postStatus(x) == 'lose').toList();
+    final shown = _tab == 'k' ? coupons : _tab == 'w' ? coupons.where((x) => postStatus(x) == 'win').toList() : coupons.where((x) => postStatus(x) == 'lose').toList();
     final score = scoreOf(widget.uid, _posts, _u!['hist'] as Map?, ((_grant['pts'] as num?)?.toDouble() ?? 0) + ((_grant['keep'] as num?)?.toDouble() ?? 0));
     final fl = _validFollowers;
     final isAdmin = _u!['isAdmin'] == true;
+
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: _db.collection('users').doc(_me).snapshots(),
       builder: (context, ms) {
         final mf = ((ms.data?.data()?['following'] as List?) ?? const []).map((e) => e.toString()).toSet();
-        return ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 24), children: [
+        return ListView(padding: const EdgeInsets.fromLTRB(12, 8, 12, 20), children: [
           Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: c.sf, borderRadius: BorderRadius.circular(24), border: Border.all(color: c.ln)),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: c.sf, borderRadius: BorderRadius.circular(16), border: Border.all(color: c.ln)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Avatar(profile: p, size: 78),
-                const SizedBox(width: 14),
+                Avatar(profile: p, size: 64),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(22, FontWeight.w800, c.tx)),
-                    Text('@${p.handle}', style: jakarta(14, FontWeight.w700, c.ac)),
+                    Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(18, FontWeight.w800, c.tx)),
+                    Text('@${p.handle}', style: jakarta(12.5, FontWeight.w700, c.ac)),
                   ]),
                 ),
                 if (isAdmin)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(color: const Color(0xFF8B3FD9), borderRadius: BorderRadius.circular(14)),
-                    child: Text('Yönetici', style: jakarta(12, FontWeight.w800, Colors.white)),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(color: const Color(0xFF8B3FD9), borderRadius: BorderRadius.circular(10)),
+                    child: Text('Yönetici', style: jakarta(10.5, FontWeight.w800, Colors.white)),
                   ),
               ]),
-              if (p.bio.isNotEmpty) ...[const SizedBox(height: 10), Text(p.bio, style: jakarta(14, FontWeight.w500, c.tx))],
-              const SizedBox(height: 12),
+              if (p.bio.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(p.bio, style: jakarta(12.5, FontWeight.w500, p.bioColor != null && p.bioColor!.isNotEmpty ? _hexColor(p.bioColor!) : c.tx)),
+              ],
+              const SizedBox(height: 10),
               if (mine)
                 SizedBox(
                   width: double.infinity,
+                  height: 36,
                   child: OutlinedButton(
                     onPressed: _edit,
-                    style: OutlinedButton.styleFrom(side: BorderSide(color: c.ln), padding: const EdgeInsets.symmetric(vertical: 12)),
-                    child: Text('Profili Düzenle', style: jakarta(14, FontWeight.w800, c.tx)),
+                    style: OutlinedButton.styleFrom(side: BorderSide(color: c.ln), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                    child: Text('Profili Düzenle', style: jakarta(12.5, FontWeight.w800, c.tx)),
                   ),
                 )
               else
                 SizedBox(
                   width: double.infinity,
+                  height: 36,
                   child: FilledButton(
-                    onPressed: () => toggleFollow(widget.uid, mf.contains(widget.uid)).catchError((e) {
-                      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AuthService.errorText(e))));
-                    }),
-                    style: FilledButton.styleFrom(
-                        backgroundColor: mf.contains(widget.uid) ? c.sf2 : c.ac, padding: const EdgeInsets.symmetric(vertical: 12)),
-                    child: Text(mf.contains(widget.uid) ? 'Takipte' : 'Takip Et',
-                        style: jakarta(14, FontWeight.w800, mf.contains(widget.uid) ? c.mu : c.on)),
+                    onPressed: () => toggleFollow(widget.uid, mf.contains(widget.uid)).catchError((e) { if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AuthService.errorText(e)))); }),
+                    style: FilledButton.styleFrom(backgroundColor: mf.contains(widget.uid) ? c.sf2 : c.ac, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                    child: Text(mf.contains(widget.uid) ? 'Takipte' : 'Takip Et', style: jakarta(12.5, FontWeight.w800, mf.contains(widget.uid) ? c.mu : c.on)),
                   ),
                 ),
             ]),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Row(children: [
             _stat(c, fmtPts(score.pts), 'Puan', null),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             _stat(c, '${coupons.length}', 'Kupon', null),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             _stat(c, '${fl.length}', 'Takipçi', () => _people('Takipçiler', fl.map((e) => e.id).toList())),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             _stat(c, '${following.length}', 'Takip', () => _people('Takip edilenler', following)),
           ]),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Container(
-            padding: const EdgeInsets.all(5),
-            decoration: BoxDecoration(color: c.sf, borderRadius: BorderRadius.circular(18), border: Border.all(color: c.ln)),
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(color: c.sf, borderRadius: BorderRadius.circular(14), border: Border.all(color: c.ln)),
             child: Row(children: [_tabBtn(c, 'k', 'Kuponlar'), _tabBtn(c, 'w', 'Tutanlar'), _tabBtn(c, 'l', 'Kaybedenler')]),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           if (shown.isEmpty)
             Padding(
-              padding: const EdgeInsets.all(28),
-              child: Text(_tab == 'k' ? 'Henüz paylaşılan kupon yok.' : _tab == 'w' ? 'Tutan kupon yok.' : 'Kaybeden kupon yok.',
-                  textAlign: TextAlign.center, style: jakarta(14, FontWeight.w600, c.mu)),
+              padding: const EdgeInsets.all(20),
+              child: Text(_tab == 'k' ? 'Henüz paylaşılan kupon yok.' : _tab == 'w' ? 'Tutan kupon yok.' : 'Kaybeden kupon yok.', textAlign: TextAlign.center, style: jakarta(13, FontWeight.w600, c.mu)),
             ),
           for (final x in shown) PostCard(key: ValueKey(x.id), post: x, following: mf.contains(x.uid)),
         ]);
@@ -291,12 +386,12 @@ class _ProfileViewState extends State<ProfileView> {
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(color: c.sf, borderRadius: BorderRadius.circular(18), border: Border.all(color: c.ln)),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(color: c.sf, borderRadius: BorderRadius.circular(14), border: Border.all(color: c.ln)),
           child: Column(children: [
-            Text(v, style: jakarta(20, FontWeight.w800, c.ac)),
-            Text(l, style: jakarta(12, FontWeight.w600, c.mu)),
-            if (onTap != null) Container(margin: const EdgeInsets.only(top: 4), width: 18, height: 2, color: c.ac.withAlpha(120)),
+            Text(v, style: jakarta(16, FontWeight.w800, c.ac)),
+            Text(l, style: jakarta(10.5, FontWeight.w600, c.mu)),
+            if (onTap != null) Container(margin: const EdgeInsets.only(top: 3), width: 14, height: 2, color: c.ac.withAlpha(120)),
           ]),
         ),
       ),
@@ -309,16 +404,15 @@ class _ProfileViewState extends State<ProfileView> {
       child: GestureDetector(
         onTap: () => setState(() => _tab = k),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 11),
-          decoration: BoxDecoration(color: on ? c.ac : Colors.transparent, borderRadius: BorderRadius.circular(14)),
-          child: Text(label, textAlign: TextAlign.center, style: jakarta(14, FontWeight.w800, on ? c.on : c.mu)),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(color: on ? c.ac : Colors.transparent, borderRadius: BorderRadius.circular(10)),
+          child: Text(label, textAlign: TextAlign.center, style: jakarta(12.5, FontWeight.w800, on ? c.on : c.mu)),
         ),
       ),
     );
   }
 }
 
-/// Kişi satırı (takipçi listesi, arama).
 class PersonTile extends StatelessWidget {
   final String uid;
   final VoidCallback onOpen;
@@ -330,12 +424,13 @@ class PersonTile extends StatelessWidget {
       future: AuthService.loadProfile(uid),
       builder: (context, s) {
         final p = s.data;
-        if (p == null) return const SizedBox(height: 56);
+        if (p == null) return const SizedBox(height: 48);
         return ListTile(
           onTap: onOpen,
-          leading: Avatar(profile: p, size: 44),
-          title: Text(p.name, style: jakarta(15, FontWeight.w800, c.tx)),
-          subtitle: Text('@${p.handle}', style: jakarta(13, FontWeight.w600, c.mu)),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+          leading: Avatar(profile: p, size: 38),
+          title: Text(p.name, style: jakarta(13.5, FontWeight.w800, c.tx)),
+          subtitle: Text('@${p.handle}', style: jakarta(11.5, FontWeight.w600, c.mu)),
         );
       },
     );
