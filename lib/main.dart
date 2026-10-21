@@ -15,7 +15,7 @@ const _barStyle = SystemUiOverlayStyle(
   systemNavigationBarColor: _barGreen,
   systemNavigationBarIconBrightness: Brightness.light,
   systemNavigationBarDividerColor: _barGreen,
-  statusBarContrastEnforced: false,
+  systemStatusBarContrastEnforced: false,
   systemNavigationBarContrastEnforced: false,
 );
 
