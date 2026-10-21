@@ -1,7 +1,7 @@
 name: ganyansosyal_native
 description: GanyanSosyal native uygulama
 publish_to: "none"
-version: 0.2.0+2
+version: 0.3.0+3
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -10,6 +10,10 @@ dependencies:
   flutter:
     sdk: flutter
   google_fonts: ^6.2.1
+  firebase_core: any
+  firebase_auth: any
+  cloud_firestore: any
+  image_picker: any
 
 flutter:
   uses-material-design: true
