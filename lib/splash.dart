@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'theme.dart';
-import 'shell.dart';
+import 'auth_page.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -20,7 +20,7 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
       if (!mounted) return;
       Navigator.of(context).pushReplacement(PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 400),
-        pageBuilder: (_, __, ___) => const Shell(),
+        pageBuilder: (_, __, ___) => const AuthGate(),
         transitionsBuilder: (_, a, __, child) => FadeTransition(opacity: a, child: child),
       ));
     });

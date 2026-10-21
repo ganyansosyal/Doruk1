@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'firebase_options.dart';
 import 'theme.dart';
 import 'splash.dart';
 
-void main() => runApp(const GanyanApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initFirebase();
+  runApp(const GanyanApp());
+}
 
 class GanyanApp extends StatelessWidget {
   const GanyanApp({super.key});

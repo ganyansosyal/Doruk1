@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'auth_service.dart';
 import 'theme.dart';
 
 class Shell extends StatefulWidget {
@@ -67,7 +68,7 @@ class _ShellState extends State<Shell> {
                       const SizedBox(width: 56),
                       _NavItem(icon: Icons.flag_outlined, label: 'Sonuçlar', on: _tab == 3, onTap: () => setState(() => _tab = 3)),
                       _NavItem(icon: Icons.person_outline, label: 'Profilim', on: _tab == 4, onTap: () => setState(() => _tab = 4)),
-                      _NavItem(icon: Icons.power_settings_new, label: 'Çıkış', on: false, danger: true, onTap: () => _toast('Çıkış sonraki aşamada')),
+                      _NavItem(icon: Icons.power_settings_new, label: 'Çıkış', on: false, danger: true, onTap: () => confirmSignOut(context)),
                     ],
                   ),
                 ),
@@ -286,6 +287,7 @@ class AppDrawer extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = AppColors.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final me = profileNotifier.value;
     return Drawer(
       width: 300,
       backgroundColor: c.bg,
@@ -310,20 +312,14 @@ class AppDrawer extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      alignment: Alignment.center,
-                      decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFFFD66B)),
-                      child: Text('C', style: jakarta(20, FontWeight.w800, const Color(0xFF7A4B00))),
-                    ),
+                    Avatar(profile: me, size: 48),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Cengiz', style: jakarta(18, FontWeight.w800, Colors.white)),
-                          Text('@admin', style: jakarta(14, FontWeight.w600, const Color(0xE0FFFFFF))),
+                          Text(me?.name ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(18, FontWeight.w800, Colors.white)),
+                          Text('@${me?.handle ?? ''}', maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(14, FontWeight.w600, const Color(0xE0FFFFFF))),
                         ],
                       ),
                     ),
@@ -366,7 +362,10 @@ class AppDrawer extends StatelessWidget {
               const SizedBox(height: 10),
               Divider(height: 1, color: c.ln),
               const SizedBox(height: 10),
-              Row(
+              InkWell(
+                onTap: () => confirmSignOut(context),
+                borderRadius: BorderRadius.circular(14),
+                child: Row(
                 children: [
                   Container(
                     width: 42,
@@ -380,6 +379,7 @@ class AppDrawer extends StatelessWidget {
                   const SizedBox(width: 12),
                   Text('Oturumu kapat', style: jakarta(16, FontWeight.w700, c.red)),
                 ],
+              ),
               ),
             ],
           ),
