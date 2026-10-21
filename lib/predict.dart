@@ -12,7 +12,6 @@ import 'tjk.dart';
 const _gun = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
 const _ay = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
 
-/// Akıştaki "Sıradaki koşu" kartı: Tahmin Yap'ta bu şehir + koşuyu açar.
 final ValueNotifier<({String city, int race})?> predictJump = ValueNotifier(null);
 
 String isoLabel(String iso) {
@@ -26,7 +25,6 @@ String isoTag(String iso) {
   return iso == t ? 'BUGÜN' : iso == isoAdd(t, -1) ? 'DÜN' : iso == isoAdd(t, 1) ? 'YARIN' : '';
 }
 
-/// At numarası rozeti (web ile aynı 6 renk döngüsü).
 class NoBadge extends StatelessWidget {
   final int no;
   final double size;
@@ -249,8 +247,6 @@ class _PredictPageState extends State<PredictPage> {
     });
   }
 
-  /* ---- kupon ---- */
-
   String _saat(int r) => s.race(_city, r)?.saat ?? '';
 
   Map<String, dynamic>? _build() {
@@ -314,537 +310,485 @@ class _PredictPageState extends State<PredictPage> {
     if (cnt < tahminLimit) return null;
     return t1 ? '$r. koşu için $f en fazla $tahminLimit kez oynanabilir.' : '${c['city']} için bugün en fazla $tahminLimit adet ${c['ord'] != null ? '${c['ord']}. ' : ''}$f oynanabilir.';
   }
-
   Future<Map<String, dynamic>?> _check() async {
-    final c = _build();
-    if (c == null) return null;
-    if (s.isPast && !_admin) {
-      _toast('Geçmiş günlere kupon yapılamaz.');
-      return null;
-    }
-    final m = typeMusait(_t, _city, admin: _admin, picked: _legSel['${_t.k}|$_city']);
-    if (!m.ok) {
-      _toast('${m.why} · bu kupon artık oynanamaz.');
-      return null;
-    }
-    if (_t.mode == 'race' && !oyunMusait(_t, _city, (c['legs'] as List)[0]['r'] as int)) {
-      _toast('${_t.name} ${(c['legs'] as List)[0]['r']}. koşuda oynanmıyor.');
-      return null;
-    }
-    final lm = await _limit(c);
-    if (lm != null) {
-      _toast(lm);
-      return null;
-    }
-    final legs = (c['legs'] as List).cast<Map>();
-    final slotted = legs.any((l) => l['slot'] != null);
-    if (_t.tabs > 0) {
-      final emp = List.generate(_t.tabs, (i) => i).where((i) => _picks(legs[0]['r'] as int, i).isEmpty).toList();
-      if (emp.isNotEmpty) {
-        _toast('Eksik sıra: ${emp.map((i) => '${i + 1}. At').join(', ')}');
-        return null;
-      }
-    }
-    final miss = legs.where((l) => (l['picks'] as List).isEmpty).toList();
-    if (miss.isNotEmpty) {
-      _toast(slotted ? 'Eksik sıra: ${miss.map((l) => '${(l['slot'] as int) + 1}. At').join(', ')}' : 'Eksik ayak: ${miss.map((l) => '${l['r']}.').join(', ')} koşu');
-      return null;
-    }
-    if (c['vir'] != null && legs.length < (c['vir'] as int)) {
-      _toast('En az ${c['vir']} at seç (şu an ${legs.length}).');
-      return null;
-    }
-    if (kolon(c) < 1) {
-      _toast((slotted || _t.tabs > 0) ? 'Her sırada farklı bir at olmalı.' : 'Seçimini tamamla: en az ${_t.rule == 'any4' ? 4 : 2} at seç.');
-      return null;
-    }
-    final tut = couponCost(c);
-    if (tut < asgari) {
-      _toast('Asgari kupon bedeli ${money(asgari)} · şu an ${money(tut)}, misli artır.');
-      return null;
-    }
-    if (limitliMi(c['type'].toString()) && !_admin && tut > altiliMax) {
-      _toast("${c['type']} kuponu en fazla ${money(altiliMax)} olabilir · şu an ${money(tut)}. Seçimini azalt.");
-      return null;
-    }
-    return c;
+  final c = _build();
+  if (c == null) return null;
+  if (s.isPast && !_admin) {
+    _toast('Geçmiş günlere kupon yapılamaz.');
+    return null;
   }
-
-  Future<void> _share() async {
-    if (_busy) return;
-    final me = profileNotifier.value;
-    if (me == null) return;
-    setState(() => _busy = true);
-    try {
-      final c = await _check();
-      if (c == null || !mounted) return;
-      final ctl = TextEditingController();
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (ctx) {
-          final col = AppColors.of(ctx);
-          return AlertDialog(
-            backgroundColor: col.sf,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-            title: Text('Kuponu paylaş', style: jakarta(17, FontWeight.w800, col.tx)),
-            content: Column(mainAxisSize: MainAxisSize.min, children: [
-              Text('${c['city']} · ${c['type']} · ${kolon(c)} kolon · ${money(couponCost(c))}', style: jakarta(13.5, FontWeight.w600, col.mu)),
-              const SizedBox(height: 10),
-              TextField(controller: ctl, maxLength: 300, maxLines: 3, decoration: const InputDecoration(hintText: 'Yorum ekle (isteğe bağlı)', border: OutlineInputBorder())),
-              Text('Paylaşılan kupon silinemez.', style: jakarta(12, FontWeight.w600, col.red)),
-            ]),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Vazgeç', style: jakarta(14, FontWeight.w700, col.mu))),
-              TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text('Paylaş', style: jakarta(14, FontWeight.w800, col.ac))),
-            ],
-          );
-        },
-      );
-      if (ok != true) return;
-      final db = FirebaseFirestore.instance;
-      final ts = DateTime.now().millisecondsSinceEpoch;
-      final id = '${ts}_${me.uid}';
-      await db.collection('posts').doc(id).set({
-        'uid': me.uid,
-        'authorName': me.name,
-        'handle': me.handle,
-        'ts': ts,
-        'text': ctl.text.trim(),
-        'coupon': c,
-        'likedBy': <String>[],
-        'comments': <Map<String, dynamic>>[],
-      });
-      try {
-        final fl = await db.collection('users').where('following', arrayContains: me.uid).limit(300).get();
-        final now = DateTime.now();
-        final exp = Timestamp.fromMillisecondsSinceEpoch(DateTime(now.year, now.month, now.day + 1).millisecondsSinceEpoch);
-        final b = db.batch();
-        for (final u in fl.docs) {
-          if (u.id == me.uid) continue;
-          b.set(db.collection('notifs').doc('nc_${id}_${u.id}'), {
-            'to': u.id, 'from': me.uid, 'fn': me.name, 'type': 'newcoupon', 'pid': ts, 'pd': id, 'ts': ts, 'exp': exp, 'tx': '${c['type']}',
-          });
-        }
-        await b.commit();
-      } catch (_) {}
-      setState(() {
-        _sel.clear();
-        _misli = 1;
-        _slot = 0;
-      });
-      _toast('Kupon paylaşıldı.');
-      widget.onShared();
-    } catch (e) {
-      _toast(AuthService.errorText(e));
-    } finally {
-      if (mounted) setState(() => _busy = false);
+  final m = typeMusait(_t, _city, admin: _admin, picked: _legSel['${_t.k}|$_city']);
+  if (!m.ok) {
+    _toast('${m.why} · bu kupon artık oynanamaz.');
+    return null;
+  }
+  if (_t.mode == 'race' && !oyunMusait(_t, _city, (c['legs'] as List)[0]['r'] as int)) {
+    _toast('${_t.name} ${(c['legs'] as List)[0]['r']}. koşuda oynanmıyor.');
+    return null;
+  }
+  final lm = await _limit(c);
+  if (lm != null) {
+    _toast(lm);
+    return null;
+  }
+  final legs = (c['legs'] as List).cast<Map>();
+  final slotted = legs.any((l) => l['slot'] != null);
+  if (_t.tabs > 0) {
+    final emp = List.generate(_t.tabs, (i) => i).where((i) => _picks(legs[0]['r'] as int, i).isEmpty).toList();
+    if (emp.isNotEmpty) {
+      _toast('Eksik sıra: ${emp.map((i) => '${i + 1}. At').join(', ')}');
+      return null;
     }
   }
+  final miss = legs.where((l) => (l['picks'] as List).isEmpty).toList();
+  if (miss.isNotEmpty) {
+    _toast(slotted ? 'Eksik sıra: ${miss.map((l) => '${(l['slot'] as int) + 1}. At').join(', ')}' : 'Eksik ayak: ${miss.map((l) => '${l['r']}.').join(', ')} koşu');
+    return null;
+  }
+  if (c['vir'] != null && legs.length < (c['vir'] as int)) {
+    _toast('En az ${c['vir']} at seç (şu an ${legs.length}).');
+    return null;
+  }
+  if (kolon(c) < 1) {
+    _toast((slotted || _t.tabs > 0) ? 'Her sırada farklı bir at olmalı.' : 'Seçimini tamamla: en az ${_t.rule == 'any4' ? 4 : 2} at seç.');
+    return null;
+  }
+  final tut = couponCost(c);
+  if (tut < asgari) {
+    _toast('Asgari kupon bedeli ${money(asgari)} · şu an ${money(tut)}, misli artır.');
+    return null;
+  }
+  if (limitliMi(c['type'].toString()) && !_admin && tut > altiliMax) {
+    _toast("${c['type']} kuponu en fazla ${money(altiliMax)} olabilir · şu an ${money(tut)}. Seçimini azalt.");
+    return null;
+  }
+  return c;
+}
 
-  /* ---- arayüz ---- */
-
-  @override
-  Widget build(BuildContext context) {
-    final c = AppColors.of(context);
-    if (s.loading && s.cities.isEmpty) {
-      return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        CircularProgressIndicator(color: c.ac),
-        const SizedBox(height: 12),
-        Text('Bülten yükleniyor…', style: jakarta(14, FontWeight.w600, c.mu)),
-      ]));
-    }
-    if (s.cities.isEmpty) {
-      return ListView(padding: const EdgeInsets.all(16), children: [
-        _dateBar(c),
-        const SizedBox(height: 40),
-        Center(child: Text(s.error ?? 'Program alınamadı.', textAlign: TextAlign.center, style: jakarta(14, FontWeight.w600, c.mu))),
-        const SizedBox(height: 12),
-        Center(child: FilledButton(onPressed: () => s.load(s.iso), style: FilledButton.styleFrom(backgroundColor: c.ac), child: Text('Tekrar dene', style: jakarta(14, FontWeight.w800, c.on)))),
-      ]);
-    }
-    final race = s.race(_city, _race);
-    final lr = _lr;
-    final st = _t.mode == 'legs' ? legStarts(_t, _city) : <int>[];
-    return Column(children: [
-      Expanded(
-        child: ListView(padding: const EdgeInsets.fromLTRB(16, 10, 16, 16), children: [
-          _dateBar(c),
-          const SizedBox(height: 10),
-          _typeBox(c),
-          const SizedBox(height: 8),
-          Row(children: [
-            Expanded(child: Text('TJK · ${s.cities.length} hipodrom · ${s.cities.fold<int>(0, (a, b) => a + s.races(b.name).length)} koşu',
-                style: jakarta(12, FontWeight.w600, c.mu))),
-            GestureDetector(onTap: () => s.load(s.iso), child: Text('Yenile', style: jakarta(13, FontWeight.w800, c.ac))),
-            const SizedBox(width: 14),
-            GestureDetector(
-              onTap: () => launchUrl(Uri.parse('https://www.youtube.com/watch?v=I1FgwiDqpS8'), mode: LaunchMode.externalApplication),
-              child: Text('● Canlı yayın', style: jakarta(13, FontWeight.w800, c.red)),
-            ),
+Future<void> _share() async {
+  if (_busy) return;
+  final me = profileNotifier.value;
+  if (me == null) return;
+  setState(() => _busy = true);
+  try {
+    final c = await _check();
+    if (c == null || !mounted) return;
+    final ctl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final col = AppColors.of(ctx);
+        return AlertDialog(
+          backgroundColor: col.sf,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+          title: Text('Kuponu paylaş', style: jakarta(17, FontWeight.w800, col.tx)),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text('${c['city']} · ${c['type']} · ${kolon(c)} kolon · ${money(couponCost(c))}', style: jakarta(13.5, FontWeight.w600, col.mu)),
+            const SizedBox(height: 10),
+            TextField(controller: ctl, maxLength: 300, maxLines: 3, decoration: const InputDecoration(hintText: 'Yorum ekle (isteğe bağlı)', border: OutlineInputBorder())),
+            Text('Paylaşılan kupon silinemez.', style: jakarta(12, FontWeight.w600, col.red)),
           ]),
-          const SizedBox(height: 10),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(children: [for (final ct in s.cities) _chip(c, ct.name, ct.name == _city, () => _setCityTo(ct.name))]),
-          ),
-          if (st.length > 1) ...[
-            const SizedBox(height: 8),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(children: [
-                for (var i = 0; i < st.length; i++)
-                  _chip(c, '${i + 1}. ${_t.name.split(' ').last == 'Ganyan' ? 'grup' : 'grup'} · ${st[i]}.–${st[i] + _t.n - 1}.', st[i] == (lr.isNotEmpty ? lr.first : -1), () {
-                    setState(() {
-                      if (_sel.isNotEmpty) {
-                        _sel.clear();
-                        _toast('Ayak grubu değişti, seçimler temizlendi.');
-                      }
-                      _legSel['${_t.k}|$_city'] = st[i];
-                      _race = st[i];
-                      _slot = 0;
-                    });
-                  }),
-              ]),
-            ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Vazgeç', style: jakarta(14, FontWeight.w700, col.mu))),
+            TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text('Paylaş', style: jakarta(14, FontWeight.w800, col.ac))),
           ],
+        );
+      },
+    );
+    if (ok != true) return;
+    final db = FirebaseFirestore.instance;
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final id = '${ts}_${me.uid}';
+    await db.collection('posts').doc(id).set({
+      'uid': me.uid,
+      'authorName': me.name,
+      'handle': me.handle,
+      'ts': ts,
+      'text': ctl.text.trim(),
+      'coupon': c,
+      'likedBy': <String>[],
+      'comments': <Map<String, dynamic>>[],
+    });
+    try {
+      final fl = await db.collection('users').where('following', arrayContains: me.uid).limit(300).get();
+      final now = DateTime.now();
+      final exp = Timestamp.fromMillisecondsSinceEpoch(DateTime(now.year, now.month, now.day + 1).millisecondsSinceEpoch);
+      final b = db.batch();
+      for (final u in fl.docs) {
+        if (u.id == me.uid) continue;
+        b.set(db.collection('notifs').doc('nc_${id}_${u.id}'), {
+          'to': u.id, 'from': me.uid, 'fn': me.name, 'type': 'newcoupon', 'pid': ts, 'pd': id, 'ts': ts, 'exp': exp, 'tx': '${c['type']}',
+        });
+      }
+      await b.commit();
+    } catch (_) {}
+    setState(() {
+      _sel.clear();
+      _misli = 1;
+      _slot = 0;
+    });
+    _toast('Kupon paylaşıldı.');
+    widget.onShared();
+  } catch (e) {
+    _toast(AuthService.errorText(e));
+  } finally {
+    if (mounted) setState(() => _busy = false);
+  }
+}
+
+@override
+Widget build(BuildContext context) {
+  final c = AppColors.of(context);
+  if (s.loading && s.cities.isEmpty) {
+    return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+      CircularProgressIndicator(color: c.ac),
+      const SizedBox(height: 12),
+      Text('Bülten yükleniyor…', style: jakarta(14, FontWeight.w600, c.mu)),
+    ]));
+  }
+  if (s.cities.isEmpty) {
+    return ListView(padding: const EdgeInsets.all(16), children: [
+      _dateBar(c),
+      const SizedBox(height: 40),
+      Center(child: Text(s.error ?? 'Program alınamadı.', textAlign: TextAlign.center, style: jakarta(14, FontWeight.w600, c.mu))),
+      const SizedBox(height: 12),
+      Center(child: FilledButton(onPressed: () => s.load(s.iso), style: FilledButton.styleFrom(backgroundColor: c.ac), child: Text('Tekrar dene', style: jakarta(14, FontWeight.w800, c.on)))),
+    ]);
+  }
+  final race = s.race(_city, _race);
+  final lr = _lr;
+  final st = _t.mode == 'legs' ? legStarts(_t, _city) : <int>[];
+  return Column(children: [
+    Expanded(
+      child: ListView(padding: const EdgeInsets.fromLTRB(16, 10, 16, 16), children: [
+        _dateBar(c),
+        const SizedBox(height: 10),
+        _typeBox(c),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(child: Text('TJK · ${s.cities.length} hipodrom · ${s.cities.fold<int>(0, (a, b) => a + s.races(b.name).length)} koşu',
+              style: jakarta(12, FontWeight.w600, c.mu))),
+          GestureDetector(onTap: () => s.load(s.iso), child: Text('Yenile', style: jakarta(13, FontWeight.w800, c.ac))),
+          const SizedBox(width: 14),
+          GestureDetector(
+            onTap: () => launchUrl(Uri.parse('https://www.youtube.com/watch?v=I1FgwiDqpS8'), mode: LaunchMode.externalApplication),
+            child: Text('● Canlı yayın', style: jakarta(13, FontWeight.w800, c.red)),
+          ),
+        ]),
+        const SizedBox(height: 10),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(children: [for (final ct in s.cities) _chip(c, ct.name, ct.name == _city, () => _setCityTo(ct.name))]),
+        ),
+        if (st.length > 1) ...[
           const SizedBox(height: 8),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(children: [
-              for (var i = 0; i < lr.length; i++) _legTab(c, i, lr[i]),
+              for (var i = 0; i < st.length; i++)
+                _chip(c, '${i + 1}. ${_t.name.split(' ').last == 'Ganyan' ? 'grup' : 'grup'} · ${st[i]}.–${st[i] + _t.n - 1}.', st[i] == (lr.isNotEmpty ? lr.first : -1), () {
+                  setState(() {
+                    if (_sel.isNotEmpty) {
+                      _sel.clear();
+                      _toast('Ayak grubu değişti, seçimler temizlendi.');
+                    }
+                    _legSel['${_t.k}|$_city'] = st[i];
+                    _race = st[i];
+                    _slot = 0;
+                  });
+                }),
             ]),
           ),
-          const SizedBox(height: 10),
-          if (race != null) _raceCard(c, race),
-          if (_t.mode == 'race' && (_t.slots > 0 || _t.tabs > 0) && !_t.vir) ...[
-            const SizedBox(height: 8),
-            Row(children: [
-              for (var i = 0; i < (_t.slots > 0 ? _t.slots : _t.tabs); i++)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: _chip(c, '${i + 1}. At${_picks(_race, i).isNotEmpty ? ' (${_picks(_race, i).length})' : ''}', _slot == i, () => setState(() => _slot = i)),
-                ),
-            ]),
-          ],
-          if (_t.hint.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_t.hint, style: jakarta(12.5, FontWeight.w500, c.mu))),
-          const SizedBox(height: 10),
-          if (race != null) for (final h in race.atlar) _horseCard(c, h),
+        ],
+        const SizedBox(height: 8),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(children: [
+            for (var i = 0; i < lr.length; i++) _legTab(c, i, lr[i]),
+          ]),
+        ),
+        const SizedBox(height: 10),
+        if (race != null) _raceCard(c, race),
+        if (_t.mode == 'race' && (_t.slots > 0 || _t.tabs > 0) && !_t.vir) ...[
+          const SizedBox(height: 8),
+          Row(children: [
+            for (var i = 0; i < (_t.slots > 0 ? _t.slots : _t.tabs); i++)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: _chip(c, '${i + 1}. At${_picks(_race, i).isNotEmpty ? ' (${_picks(_race, i).length})' : ''}', _slot == i, () => setState(() => _slot = i)),
+              ),
+          ]),
+        ],
+        if (_t.hint.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_t.hint, style: jakarta(12.5, FontWeight.w500, c.mu))),
+        const SizedBox(height: 10),
+        if (race != null) for (final h in race.atlar) _horseCard(c, h),
+      ]),
+    ),
+    _couponBar(c),
+  ]);
+}
+  Widget _dateBar(AppColors c) {
+  return Container(
+    padding: const EdgeInsets.all(8),
+    decoration: BoxDecoration(color: c.sf, borderRadius: BorderRadius.circular(20), border: Border.all(color: c.ln)),
+    child: Row(children: [
+      _arrow(c, Icons.chevron_left, () => _day(-1)),
+      Expanded(
+        child: Column(children: [
+          if (isoTag(s.iso).isNotEmpty) Text(isoTag(s.iso), style: jakarta(11.5, FontWeight.w800, c.ac)),
+          Text(isoLabel(s.iso), style: jakarta(17, FontWeight.w800, c.tx)),
         ]),
       ),
-      _couponBar(c),
-    ]);
-  }
+      _arrow(c, Icons.chevron_right, () => _day(1)),
+    ]),
+  );
+}
 
-  Widget _dateBar(AppColors c) {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(color: c.sf, borderRadius: BorderRadius.circular(20), border: Border.all(color: c.ln)),
-      child: Row(children: [
-        _arrow(c, Icons.chevron_left, () => _day(-1)),
-        Expanded(
-          child: Column(children: [
-            if (isoTag(s.iso).isNotEmpty) Text(isoTag(s.iso), style: jakarta(11.5, FontWeight.w800, c.ac)),
-            Text(isoLabel(s.iso), style: jakarta(17, FontWeight.w800, c.tx)),
-          ]),
-        ),
-        _arrow(c, Icons.chevron_right, () => _day(1)),
-      ]),
+void _day(int d) {
+  final n = isoAdd(s.iso, d);
+  if (n.compareTo(isoAdd(isoToday(), 1)) > 0 || n.compareTo(isoAdd(isoToday(), -14)) < 0) return;
+  setState(() {
+    _sel.clear();
+    _city = '';
+    _slot = 0;
+  });
+  s.load(n);
+}
+
+Widget _arrow(AppColors c, IconData ic, VoidCallback f) => GestureDetector(
+      onTap: f,
+      child: Container(width: 40, height: 40, decoration: BoxDecoration(color: c.sf2, borderRadius: BorderRadius.circular(14)), child: Icon(ic, color: c.tx)),
     );
-  }
 
-  void _day(int d) {
-    final n = isoAdd(s.iso, d);
-    if (n.compareTo(isoAdd(isoToday(), 1)) > 0 || n.compareTo(isoAdd(isoToday(), -14)) < 0) return;
-    setState(() {
-      _sel.clear();
-      _city = '';
-      _slot = 0;
-    });
-    s.load(n);
-  }
-
-  Widget _arrow(AppColors c, IconData ic, VoidCallback f) => GestureDetector(
-        onTap: f,
-        child: Container(width: 40, height: 40, decoration: BoxDecoration(color: c.sf2, borderRadius: BorderRadius.circular(14)), child: Icon(ic, color: c.tx)),
-      );
-
-  Widget _chip(AppColors c, String t, bool on, VoidCallback f) => Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: GestureDetector(
-          onTap: f,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-            decoration: BoxDecoration(color: on ? c.ac : c.sf, borderRadius: BorderRadius.circular(16), border: Border.all(color: on ? c.ac : c.ln, width: 1.5)),
-            child: Text(t, style: jakarta(14, FontWeight.w800, on ? c.on : c.tx)),
-          ),
-        ),
-      );
-
-  Widget _legTab(AppColors c, int i, int r) {
-    final on = r == _race;
-    final has = _sel.any((x) => x.r == r);
-    final legs = _t.mode == 'legs';
-    return Padding(
+Widget _chip(AppColors c, String t, bool on, VoidCallback f) => Padding(
       padding: const EdgeInsets.only(right: 8),
       child: GestureDetector(
-        onTap: () => setState(() {
-          _race = r;
-          if (_t.mode == 'race' && _sel.any((x) => x.r != r)) {
-            _sel.clear();
-            _toast('Yeni koşu için seçimler temizlendi.');
-          }
-          _slot = 0;
-        }),
+        onTap: f,
         child: Container(
-          constraints: const BoxConstraints(minWidth: 74),
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
           decoration: BoxDecoration(color: on ? c.ac : c.sf, borderRadius: BorderRadius.circular(16), border: Border.all(color: on ? c.ac : c.ln, width: 1.5)),
-          child: Column(children: [
-            Text('${has && legs ? '✓ ' : ''}${legs ? '${i + 1}. Ayak' : '$r. Koşu'}', style: jakarta(14, FontWeight.w800, on ? c.on : c.tx)),
-            Text(legs ? '$r. Koşu' : _saat(r), style: jakarta(11.5, FontWeight.w600, on ? c.on : c.mu)),
-          ]),
+          child: Text(t, style: jakarta(14, FontWeight.w800, on ? c.on : c.tx)),
         ),
       ),
     );
-  }
 
-  Widget _typeBox(AppColors c) {
-    final st = _t.mode == 'legs' ? legStarts(_t, _city) : <int>[];
-    final ord = (st.length > 1 && _lr.isNotEmpty && st.contains(_lr.first)) ? '${st.indexOf(_lr.first) + 1}. ' : '';
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
-      decoration: BoxDecoration(color: c.ac.withAlpha(20), borderRadius: BorderRadius.circular(20), border: Border.all(color: c.ac)),
-      child: Row(children: [
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('BAHİS TÜRÜ', style: jakarta(11, FontWeight.w800, c.ac)),
-            Text('$ord${_t.name}', style: jakarta(20, FontWeight.w800, c.tx)),
-          ]),
-        ),
-        FilledButton.icon(
-          onPressed: _pickType,
-          style: FilledButton.styleFrom(backgroundColor: c.ac, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-          icon: Icon(Icons.keyboard_arrow_down, color: c.on),
-          label: Text('Değiştir', style: jakarta(14, FontWeight.w800, c.on)),
-        ),
-      ]),
-    );
-  }
+Widget _legTab(AppColors c, int i, int r) {
+  final on = r == _race;
+  final has = _sel.any((x) => x.r == r);
+  final legs = _t.mode == 'legs';
+  return Padding(
+    padding: const EdgeInsets.only(right: 8),
+    child: GestureDetector(
+      onTap: () => setState(() {
+        _race = r;
+        if (_t.mode == 'race' && _sel.any((x) => x.r != r)) {
+          _sel.clear();
+          _toast('Yeni koşu için seçimler temizlendi.');
+        }
+        _slot = 0;
+      }),
+      child: Container(
+        constraints: const BoxConstraints(minWidth: 74),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        decoration: BoxDecoration(color: on ? c.ac : c.sf, borderRadius: BorderRadius.circular(16), border: Border.all(color: on ? c.ac : c.ln, width: 1.5)),
+        child: Column(children: [
+          Text('${has && legs ? '✓ ' : ''}${legs ? '${i + 1}. Ayak' : '$r. Koşu'}', style: jakarta(14, FontWeight.w800, on ? c.on : c.tx)),
+          Text(legs ? '$r. Koşu' : _saat(r), style: jakarta(11.5, FontWeight.w600, on ? c.on : c.mu)),
+        ]),
+      ),
+    ),
+  );
+}
 
-  void _pickType() {
-    final c = AppColors.of(context);
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: c.bg,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(26))),
-      builder: (ctx) {
-        final list = kTypes.where((t) {
-          if (t.si == 1) return legStarts(t, _city).length > 1;
-          return true;
-        }).toList();
-        return SizedBox(
-          height: MediaQuery.of(ctx).size.height * 0.75,
-          child: Column(children: [
-            const SizedBox(height: 14),
-            Text('Bahis türü seç', style: jakarta(17, FontWeight.w800, c.tx)),
-            Expanded(
-              child: ListView(padding: const EdgeInsets.all(12), children: [
-                for (final t in list)
-                  Builder(builder: (_) {
-                    final m = typeMusait(t, _city, admin: _admin);
-                    final on = t.k == _t.k;
-                    return Opacity(
-                      opacity: m.ok ? 1 : 0.45,
-                      child: GestureDetector(
-                        onTap: m.ok
-                            ? () {
-                                Navigator.pop(ctx);
-                                _setType(t);
-                              }
-                            : () => _toast('${t.name}: ${m.why}'),
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(color: on ? c.ac.withAlpha(24) : c.sf, borderRadius: BorderRadius.circular(16), border: Border.all(color: on ? c.ac : c.ln)),
-                          child: Row(children: [
-                            Expanded(
-                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Text('${t.si == 1 ? '2. ' : t.si == 0 && legStarts(t, _city).length > 1 ? '1. ' : ''}${t.name}', style: jakarta(15, FontWeight.w800, c.tx)),
-                                Text(m.ok ? (t.desc.isNotEmpty ? t.desc : t.sub) : m.why, style: jakarta(12.5, FontWeight.w500, c.mu)),
-                              ]),
-                            ),
-                            Text(money(birimFiyat(t.name, _city)), style: jakarta(12.5, FontWeight.w700, c.ac)),
-                          ]),
-                        ),
+Widget _typeBox(AppColors c) {
+  final st = _t.mode == 'legs' ? legStarts(_t, _city) : <int>[];
+  final ord = (st.length > 1 && _lr.isNotEmpty && st.contains(_lr.first)) ? '${st.indexOf(_lr.first) + 1}. ' : '';
+  return Container(
+    padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+    decoration: BoxDecoration(color: c.ac.withAlpha(20), borderRadius: BorderRadius.circular(20), border: Border.all(color: c.ac)),
+    child: Row(children: [
+      Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('BAHİS TÜRÜ', style: jakarta(11, FontWeight.w800, c.ac)),
+          Text('$ord${_t.name}', style: jakarta(20, FontWeight.w800, c.tx)),
+        ]),
+      ),
+      FilledButton.icon(
+        onPressed: _pickType,
+        style: FilledButton.styleFrom(backgroundColor: c.ac, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+        icon: Icon(Icons.keyboard_arrow_down, color: c.on),
+        label: Text('Değiştir', style: jakarta(14, FontWeight.w800, c.on)),
+      ),
+    ]),
+  );
+}
+
+void _pickType() {
+  final c = AppColors.of(context);
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: c.bg,
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(26))),
+    builder: (ctx) {
+      final list = kTypes.where((t) {
+        if (t.si == 1) return legStarts(t, _city).length > 1;
+        return true;
+      }).toList();
+      return SizedBox(
+        height: MediaQuery.of(ctx).size.height * 0.75,
+        child: Column(children: [
+          const SizedBox(height: 14),
+          Text('Bahis türü seç', style: jakarta(17, FontWeight.w800, c.tx)),
+          Expanded(
+            child: ListView(padding: const EdgeInsets.all(12), children: [
+              for (final t in list)
+                Builder(builder: (_) {
+                  final m = typeMusait(t, _city, admin: _admin);
+                  final on = t.k == _t.k;
+                  return Opacity(
+                    opacity: m.ok ? 1 : 0.45,
+                    child: GestureDetector(
+                      onTap: m.ok
+                          ? () {
+                              Navigator.pop(ctx);
+                              _setType(t);
+                            }
+                          : () => _toast('${t.name}: ${m.why}'),
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(color: on ? c.ac.withAlpha(24) : c.sf, borderRadius: BorderRadius.circular(16), border: Border.all(color: on ? c.ac : c.ln)),
+                        child: Row(children: [
+                          Expanded(
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text('${t.si == 1 ? '2. ' : t.si == 0 && legStarts(t, _city).length > 1 ? '1. ' : ''}${t.name}', style: jakarta(15, FontWeight.w800, c.tx)),
+                              Text(m.ok ? (t.desc.isNotEmpty ? t.desc : t.sub) : m.why, style: jakarta(12.5, FontWeight.w500, c.mu)),
+                            ]),
+                          ),
+                          Text(money(birimFiyat(t.name, _city)), style: jakarta(12.5, FontWeight.w700, c.ac)),
+                        ]),
                       ),
-                    );
-                  }),
-              ]),
-            ),
+                    ),
+                  );
+                }),
+            ]),
+          ),
+        ]),
+      );
+    },
+  );
+}
+
+Widget _raceCard(AppColors c, Race r) {
+  final done = !_open(r.no);
+  return Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(color: c.ac.withAlpha(14), borderRadius: BorderRadius.circular(20), border: Border.all(color: c.ln)),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('$_city ${r.no}. Koşu • ${r.saat}', style: jakarta(18, FontWeight.w800, c.tx)),
+      if (r.bilgi.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text(r.bilgi, style: jakarta(13, FontWeight.w500, c.mu))),
+      Text('${r.atlar.length} at', style: jakarta(13, FontWeight.w500, c.mu)),
+      if (done)
+        Padding(padding: const EdgeInsets.only(top: 6), child: Text('Koşu başladı / bitti · seçime kapalı', style: jakarta(12.5, FontWeight.w800, c.red))),
+    ]),
+  );
+}
+
+Color _pill(double v) => v < 2 ? const Color(0xFF16A34A) : v < 5 ? const Color(0xFF2563EB) : v < 10 ? const Color(0xFFD97706) : v < 25 ? const Color(0xFFEA580C) : const Color(0xFFDC2626);
+
+String _kgsTxt(String k) {
+  final n = int.tryParse(k.trim());
+  if (n == null) return k;
+  return n == 0 ? 'Bugün' : n == 1 ? 'Dün' : '$n gün önce';
+}
+
+Widget _statCell(AppColors c, String lab, String val, {Color? col, bool right = true, bool bottom = true}) => Expanded(
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(2, 8, 8, 8),
+        decoration: BoxDecoration(border: Border(right: right ? BorderSide(color: c.ln) : BorderSide.none, bottom: bottom ? BorderSide(color: c.ln) : BorderSide.none)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(lab, style: jakarta(12, FontWeight.w600, c.mu)),
+          Text(val, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(17, FontWeight.w800, col ?? c.tx)),
+        ]),
+      ),
+    );
+
+Future<void> _playIdman(Horse h) async {
+  if (_idmBusy) return;
+  _idmBusy = true;
+  final messenger = ScaffoldMessenger.of(context);
+  messenger.showSnackBar(const SnackBar(content: Text('Video yükleniyor…'), duration: Duration(seconds: 8)));
+  try {
+    final mp4 = await getIdmanMp4(h, s.iso);
+    messenger.hideCurrentSnackBar();
+    if (!mounted) return;
+    if (mp4 == null) {
+      _toast('İdman videosu bulunamadı.');
+      return;
+    }
+    await showRaceFilm(context, url: mp4, race: _race, city: _city, dateLabel: '', rows: const [], title: h.name, subtitle: 'İdman videosu', badge: '${h.no}');
+  } catch (_) {
+    messenger.hideCurrentSnackBar();
+    _toast('İdman videosu açılamadı.');
+  } finally {
+    _idmBusy = false;
+  }
+}
+
+Future<void> _playVideo(String url, String title, String horseName) async {
+  if (url.isEmpty) return;
+  final mp4 = await getVideoMp4(url, s.iso);
+  if (mp4 != null && mounted) {
+    await showRaceFilm(context, url: mp4, race: _race, city: _city, dateLabel: '', rows: const [], title: title, subtitle: horseName, badge: '▶');
+  } else {
+    launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  }
+}
+
+Widget _horseDetail(AppColors c, Horse h, String key) {
+  final sik = h.siklet == null ? '' : h.siklet!.toStringAsFixed(h.siklet! % 1 == 0 ? 0 : 1).replaceAll('.', ',');
+  final kgsN = int.tryParse(h.kgs.trim());
+  final kgsCol = kgsN == null ? null : (kgsN <= 14 ? const Color(0xFF16A34A) : (kgsN >= 36 ? const Color(0xFFEA580C) : null));
+  final cells = <(String, String, Color?)>[
+    if (h.yas.isNotEmpty) ('Yaş', h.yas, null),
+    if (sik.isNotEmpty) ('Sıklet', sik, null),
+    if (h.st.isNotEmpty) ('Kulvar', h.st, null),
+    if (h.hp != null) ('HP', '${h.hp}', const Color(0xFFD97706)),
+    if (h.kgs.isNotEmpty) ('Son koşu', _kgsTxt(h.kgs), kgsCol),
+    if (h.s20.isNotEmpty) ('S20', h.s20, null),
+  ];
+  final rows = <Widget>[];
+  for (var i = 0; i < cells.length; i += 3) {
+    final part = cells.sublist(i, (i + 3).clamp(0, cells.length));
+    final last = i + 3 >= cells.length;
+    rows.add(Row(children: [
+      for (var j = 0; j < 3; j++)
+        j < part.length
+            ? _statCell(c, part[j].$1, part[j].$2, col: part[j].$3, right: j < 2, bottom: !last)
+            : const Expanded(child: SizedBox()),
+    ]));
+  }
+  final eid = RegExp(r'\d{1,2}\.\d{2}\.\d{2}').firstMatch(h.eid)?.group(0) ?? '';
+  final em = RegExp(r'Bu derece\s+(.+?)\s+Hipodromu.{0,3}nda,?\s*([\d.]+)', caseSensitive: false).firstMatch(h.eid);
+  final eidSub = em != null ? '${em.group(1)!.replaceAll(RegExp(r'\s+'), ' ')} · ${em.group(2)}' : '';
+  final ek = s.races(_city).where((r) => r.no == _race).expand((r) => r.atlar).where((x) => x.no != h.no && !x.kosmaz && h.sahip.isNotEmpty && x.sahip.toUpperCase() == h.sahip.toUpperCase()).toList();
+  final orOpen = _orOpen.contains(key);
+  
+  Widget line(String lab, String val) => val.isEmpty
+      ? const SizedBox.shrink()
+      : Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(lab, style: jakarta(11.5, FontWeight.w700, c.mu)),
+            Text(val, style: jakarta(14, FontWeight.w700, c.tx)),
           ]),
         );
-      },
-    );
-  }
 
-  Widget _raceCard(AppColors c, Race r) {
-    final done = !_open(r.no);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: c.ac.withAlpha(14), borderRadius: BorderRadius.circular(20), border: Border.all(color: c.ln)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('$_city ${r.no}. Koşu • ${r.saat}', style: jakarta(18, FontWeight.w800, c.tx)),
-        if (r.bilgi.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text(r.bilgi, style: jakarta(13, FontWeight.w500, c.mu))),
-        Text('${r.atlar.length} at', style: jakarta(13, FontWeight.w500, c.mu)),
-        if (done)
-          Padding(padding: const EdgeInsets.only(top: 6), child: Text('Koşu başladı / bitti · seçime kapalı', style: jakarta(12.5, FontWeight.w800, c.red))),
-      ]),
-    );
-  }
-
-  Color _pill(double v) => v < 2 ? const Color(0xFF16A34A) : v < 5 ? const Color(0xFF2563EB) : v < 10 ? const Color(0xFFD97706) : v < 25 ? const Color(0xFFEA580C) : const Color(0xFFDC2626);
-
-  static const _takiAd = {
-    'KG': 'Kapalı gözlük takılacağını ifade eder.',
-    'K': 'Kulaklık takılacağını ifade eder.',
-    'SK': 'Ring mahalinden starta kadar kulaklık ile geleceğini ifade eder.',
-    'SKG': 'Ring mahalinden starta kadar kapalı gözlük ile geleceğini ifade eder.',
-    'DB': 'Dilinin bağlanacağını ifade eder.',
-    'GKR': 'Göz koruyucu takılacağını ifade eder.',
-  };
-
-  String _kgsTxt(String k) {
-    final n = int.tryParse(k.trim());
-    if (n == null) return k;
-    return n == 0 ? 'Bugün' : n == 1 ? 'Dün' : '$n gün önce';
-  }
-
-  Widget _takiChip(AppColors c, ({String k, String a}) t) => GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => _toast('${t.k}: ${t.a.isNotEmpty ? t.a : (_takiAd[t.k.toUpperCase()] ?? 'Açıklama bulunamadı.')}'),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(color: c.ac.withAlpha(26), borderRadius: BorderRadius.circular(20), border: Border.all(color: c.ac.withAlpha(90))),
-          child: Text(t.k, style: jakarta(12.5, FontWeight.w800, c.ac)),
-        ),
-      );
-
-  Widget _s6Cell(AppColors c, String n, String pist) {
-    Color bg = c.sf2, fg = c.tx;
-    if (n == '1') {
-      bg = const Color(0xFFFBE7A1);
-      fg = const Color(0xFF8A6100);
-    } else if (n == '2') {
-      bg = const Color(0xFFE3E8F0);
-      fg = const Color(0xFF4B5A70);
-    } else if (n == '3') {
-      bg = const Color(0xFFF1D6BE);
-      fg = const Color(0xFF8A4B1F);
-    } else if (n == '0' || (int.tryParse(n) ?? 0) >= 6) {
-      bg = const Color(0xFFFBE4E8);
-      fg = const Color(0xFFD0304F);
-    }
-    final pc = pist == 'Ç' ? const Color(0xFF16A34A) : pist == 'K' ? const Color(0xFFB45309) : pist == 'S' ? const Color(0xFF2563EB) : c.mu;
-    return Padding(
-      padding: const EdgeInsets.only(right: 5),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        SizedBox(height: 16, child: Text(pist, style: jakarta(11.5, FontWeight.w800, pc))),
-        Container(
-          width: 26,
-          height: 26,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
-          child: Text(n, style: jakarta(13, FontWeight.w800, fg)),
-        ),
-      ]),
-    );
-  }
-
-  Widget _statCell(AppColors c, String lab, String val, {Color? col, bool right = true, bool bottom = true}) => Expanded(
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(2, 8, 8, 8),
-          decoration: BoxDecoration(border: Border(right: right ? BorderSide(color: c.ln) : BorderSide.none, bottom: bottom ? BorderSide(color: c.ln) : BorderSide.none)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(lab, style: jakarta(12, FontWeight.w600, c.mu)),
-            Text(val, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(17, FontWeight.w800, col ?? c.tx)),
-          ]),
-        ),
-      );
-
-  Future<void> _playIdman(Horse h) async {
-    if (_idmBusy) return;
-    _idmBusy = true;
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.showSnackBar(const SnackBar(content: Text('Video yükleniyor…'), duration: Duration(seconds: 8)));
-    try {
-      final mp4 = await getIdmanMp4(h, s.iso);
-      messenger.hideCurrentSnackBar();
-      if (!mounted) return;
-      if (mp4 == null) {
-        _toast('İdman videosu bulunamadı.');
-        return;
-      }
-      await showRaceFilm(context, url: mp4, race: _race, city: _city, dateLabel: '', rows: const [], title: h.name, subtitle: 'İdman videosu', badge: '${h.no}');
-    } catch (_) {
-      messenger.hideCurrentSnackBar();
-      _toast('İdman videosu açılamadı.');
-    } finally {
-      _idmBusy = false;
-    }
-  }
-
-  Widget _horseDetail(AppColors c, Horse h, String key) {
-    final sik = h.siklet == null ? '' : h.siklet!.toStringAsFixed(h.siklet! % 1 == 0 ? 0 : 1).replaceAll('.', ',');
-    final kgsN = int.tryParse(h.kgs.trim());
-    final kgsCol = kgsN == null ? null : (kgsN <= 14 ? const Color(0xFF16A34A) : (kgsN >= 36 ? const Color(0xFFEA580C) : null));
-    final cells = <(String, String, Color?)>[
-      if (h.yas.isNotEmpty) ('Yaş', h.yas, null),
-      if (sik.isNotEmpty) ('Sıklet', sik, null),
-      if (h.st.isNotEmpty) ('Kulvar', h.st, null),
-      if (h.hp != null) ('HP', '${h.hp}', const Color(0xFFD97706)),
-      if (h.kgs.isNotEmpty) ('Son koşu', _kgsTxt(h.kgs), kgsCol),
-      if (h.s20.isNotEmpty) ('S20', h.s20, null),
-    ];
-    final rows = <Widget>[];
-    for (var i = 0; i < cells.length; i += 3) {
-      final part = cells.sublist(i, (i + 3).clamp(0, cells.length));
-      final last = i + 3 >= cells.length;
-      rows.add(Row(children: [
-        for (var j = 0; j < 3; j++)
-          j < part.length
-              ? _statCell(c, part[j].$1, part[j].$2, col: part[j].$3, right: j < 2, bottom: !last)
-              : const Expanded(child: SizedBox()),
-      ]));
-    }
-    final eid = RegExp(r'\d{1,2}\.\d{2}\.\d{2}').firstMatch(h.eid)?.group(0) ?? '';
-    final ek = s.races(_city).where((r) => r.no == _race).expand((r) => r.atlar).where((x) => x.no != h.no && !x.kosmaz && h.sahip.isNotEmpty && x.sahip.toUpperCase() == h.sahip.toUpperCase()).toList();
-    final orOpen = _orOpen.contains(key);
-    Widget line(String lab, String val) => val.isEmpty
-        ? const SizedBox.shrink()
-        : Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(lab, style: jakarta(11.5, FontWeight.w700, c.mu)),
-              Text(val, style: jakarta(14, FontWeight.w700, c.tx)),
-            ]),
-          );
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      if (rows.isNotEmpty) Container(decoration: BoxDecoration(border: Border(top: BorderSide(color: c.ln))), child: Column(children: rows)),
-      if (eid.isNotEmpty)
-        Container(
-          margin: const EdgeInsets.only(top: 10),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: c.sf2, borderRadius: BorderRadius.circular(14)),
-          child: Row(children: [
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('En iyi derece', style: jakarta(12, FontWeight.w600, c.mu)),
-              Text(eid, style: jakarta(17, FontWeight.w800, c.tx)),
-            ])),
-          ]),
-        ),
-      if (h.idmK.isNotEmpty)
+  return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    if (rows.isNotEmpty) Container(decoration: BoxDecoration(border: Border(top: BorderSide(color: c.ln))), child: Column(children: rows)),
+          if (h.idmK.isNotEmpty)
         GestureDetector(
           onTap: () => _playIdman(h),
           child: Container(
@@ -859,11 +803,140 @@ class _PredictPageState extends State<PredictPage> {
             ]),
           ),
         ),
+
+      FutureBuilder<AtHist>(
+        future: getAtHist(h.atId),
+        builder: (context, snapshot) {
+          final yaris = snapshot.data?.yaris;
+          if (yaris == null) return const SizedBox.shrink();
+          return Container(
+            margin: const EdgeInsets.only(top: 10),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: const Color(0xFF7C3AED).withAlpha(24), borderRadius: BorderRadius.circular(16)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(color: const Color(0xFF7C3AED), borderRadius: BorderRadius.circular(8)),
+                  child: Text(yaris.no, style: jakarta(13, FontWeight.w800, Colors.white)),
+                ),
+                const SizedBox(width: 10),
+                Text('Son yarış · ${yaris.k}', style: jakarta(13, FontWeight.w800, const Color(0xFF7C3AED))),
+                const Spacer(),
+                Text(yaris.y, style: jakarta(12.5, FontWeight.w600, const Color(0xFF7C3AED))),
+              ]),
+              const SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(yaris.d, style: jakarta(17, FontWeight.w800, const Color(0xFF7C3AED))),
+                  if (yaris.v.isNotEmpty)
+                    GestureDetector(
+                      onTap: () => _playVideo(yaris.v, "Son Yarış", h.name),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(color: const Color(0xFF111827), borderRadius: BorderRadius.circular(20)),
+                        child: Row(children: [
+                          const Icon(Icons.play_arrow, color: Colors.white, size: 14),
+                          const SizedBox(width: 4),
+                          Text('Videoyu izle', style: jakarta(12, FontWeight.w700, Colors.white)),
+                        ]),
+                      ),
+                    ),
+                ],
+              ),
+            ]),
+          );
+        }
+      ),
+
+      if (eid.isNotEmpty)
+        Container(
+          margin: const EdgeInsets.only(top: 10),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: const Color(0xFF16A34A).withAlpha(24), borderRadius: BorderRadius.circular(16)),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('En iyi derece', style: jakarta(12, FontWeight.w600, const Color(0xFF16A34A))),
+                  Text(eid, style: jakarta(17, FontWeight.w800, const Color(0xFF16A34A))),
+                ]),
+              ),
+              if (eidSub.isNotEmpty)
+                Text(eidSub, style: jakarta(12.5, FontWeight.w700, const Color(0xFF16A34A))),
+            ],
+          ),
+        ),
+
+      FutureBuilder<AtHist>(
+        future: getAtHist(h.atId),
+        builder: (context, snapshot) {
+          final gal = snapshot.data?.galibiyet;
+          if (gal == null) return const SizedBox.shrink();
+          return Container(
+            margin: const EdgeInsets.only(top: 10),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: const Color(0xFFD97706).withAlpha(24), borderRadius: BorderRadius.circular(16)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Son galibiyet · ${gal.k}', style: jakarta(13, FontWeight.w800, const Color(0xFFD97706))),
+                  Text(gal.y, style: jakarta(12.5, FontWeight.w600, const Color(0xFFD97706))),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('${gal.t} · ${gal.d}', style: jakarta(16, FontWeight.w800, const Color(0xFFD97706))),
+                  if (gal.v.isNotEmpty)
+                    GestureDetector(
+                      onTap: () => _playVideo(gal.v, "Son Galibiyet", h.name),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(color: const Color(0xFF111827), borderRadius: BorderRadius.circular(20)),
+                        child: Row(children: [
+                          const Icon(Icons.play_arrow, color: Colors.white, size: 14),
+                          const SizedBox(width: 4),
+                          Text('Videoyu izle', style: jakarta(12, FontWeight.w700, Colors.white)),
+                        ]),
+                      ),
+                    ),
+                ],
+              ),
+            ]),
+          );
+        }
+      ),
+
+      FutureBuilder<AtRow?>(
+        future: getAtGalop(h.atId),
+        builder: (context, snapshot) {
+          final gop = snapshot.data;
+          if (gop == null) return const SizedBox.shrink();
+          return Container(
+            margin: const EdgeInsets.only(top: 10),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: const Color(0xFF2563EB).withAlpha(24), borderRadius: BorderRadius.circular(16)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Son galop · ${gop.t}', style: jakarta(13, FontWeight.w800, const Color(0xFF2563EB))),
+              const SizedBox(height: 4),
+              Text(gop.d, style: jakarta(16, FontWeight.w800, const Color(0xFF2563EB))),
+              const SizedBox(height: 4),
+              Text(gop.y, style: jakarta(13, FontWeight.w600, const Color(0xFF2563EB))),
+            ]),
+          );
+        }
+      ),
+
       if (ek.isNotEmpty)
         Padding(
           padding: const EdgeInsets.only(top: 10),
           child: Text('Ekürü: ${ek.map((x) => '${x.no} ${x.name}').join(' · ')}', style: jakarta(13, FontWeight.w700, c.mu)),
         ),
+
       if (h.orijin.isNotEmpty || h.sahip.isNotEmpty || h.antrenor.isNotEmpty)
         GestureDetector(
           onTap: () => setState(() => orOpen ? _orOpen.remove(key) : _orOpen.add(key)),
@@ -923,33 +996,16 @@ class _PredictPageState extends State<PredictPage> {
                 child: on ? (order > 0 ? Text('$order', style: jakarta(14, FontWeight.w800, c.on)) : Icon(Icons.check, color: c.on, size: 20)) : Icon(Icons.add, color: c.ac),
               ),
             ]),
-            if (h.son6.isNotEmpty || h.taki.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                if (h.son6.isNotEmpty) ...[
-                  Padding(padding: const EdgeInsets.only(bottom: 5), child: Text('SON 6', style: jakarta(11.5, FontWeight.w800, c.mu))),
-                  const SizedBox(width: 8),
-                  for (var i = 0; i < h.son6.length; i++) _s6Cell(c, h.son6[i], i < h.son6p.length ? h.son6p[i] : ''),
-                ],
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 2),
-                    child: Wrap(alignment: WrapAlignment.end, spacing: 6, runSpacing: 4, children: [for (final t in h.taki) _takiChip(c, t)]),
-                  ),
-                ),
-              ]),
-            ],
             const SizedBox(height: 8),
             Builder(builder: (_) {
-              final key = '$_city|$_race|${h.no}';
-              final open = _detOpen.contains(key);
+              final open = _detOpen.contains('$_city|$_race|${h.no}');
               final sum = [if (h.yas.isNotEmpty) h.yas, if (h.siklet != null) '${h.siklet!.toStringAsFixed(h.siklet! % 1 == 0 ? 0 : 1)} kg', if (h.hp != null) 'HP ${h.hp}', if (h.kgs.isNotEmpty) _kgsTxt(h.kgs)].join(' · ');
               return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
                   Expanded(child: Text(open ? 'Detay bilgileri' : sum, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(13, FontWeight.w600, c.mu))),
                   GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap: () => setState(() => open ? _detOpen.remove(key) : _detOpen.add(key)),
+                    onTap: () => setState(() => open ? _detOpen.remove('$_city|$_race|${h.no}') : _detOpen.add('$_city|$_race|${h.no}')),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
                       child: Text('Detay ${open ? '▴' : '▾'}', style: jakarta(14, FontWeight.w800, c.ac)),
@@ -959,7 +1015,7 @@ class _PredictPageState extends State<PredictPage> {
                 AnimatedSize(
                   duration: const Duration(milliseconds: 180),
                   alignment: Alignment.topCenter,
-                  child: open ? _horseDetail(c, h, key) : const SizedBox(width: double.infinity),
+                  child: open ? _horseDetail(c, h, '$_city|$_race|${h.no}') : const SizedBox(width: double.infinity),
                 ),
               ]);
             }),
