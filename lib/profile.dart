@@ -60,6 +60,8 @@ class _ProfileViewState extends State<ProfileView> {
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _followers = [];
   String _tab = 'k';
   bool _loaded = false;
+  bool? _fol; // takip butonu anında değişsin (sunucu cevabını beklemeden)
+  late final Stream<DocumentSnapshot<Map<String, dynamic>>> _meStream = _db.collection('users').doc(_me).snapshots();
 
   @override
   void initState() {
@@ -343,9 +345,10 @@ Widget build(BuildContext context) {
   final isAdmin = _u!['isAdmin'] == true;
 
   return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-    stream: _db.collection('users').doc(_me).snapshots(),
+    stream: _meStream,
     builder: (context, ms) {
       final mf = ((ms.data?.data()?['following'] as List?) ?? const []).map((e) => e.toString()).toSet();
+      final isFol = _fol ?? mf.contains(widget.uid);
       return ListView(
         padding: EdgeInsets.zero,
         children: [
@@ -466,20 +469,34 @@ Widget build(BuildContext context) {
                           ? OutlinedButton(
                               onPressed: _edit,
                               style: OutlinedButton.styleFrom(
-                                side: BorderSide(color: c.ln),
+                                backgroundColor: c.sf,
+                                side: BorderSide(color: c.ac, width: 1.6),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                               ),
-                              child: Text('Profili Düzenle', style: jakarta(14, FontWeight.w800, c.tx)),
+                              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                Icon(Icons.edit_outlined, size: 17, color: c.ac),
+                                const SizedBox(width: 6),
+                                Text('Profili Düzenle', style: jakarta(14, FontWeight.w800, c.ac)),
+                              ]),
                             )
                           : FilledButton(
-                              onPressed: () => toggleFollow(widget.uid, mf.contains(widget.uid)).catchError((e) {
-                                if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AuthService.errorText(e))));
-                              }),
+                              onPressed: () {
+                                final was = isFol;
+                                setState(() => _fol = !was);
+                                toggleFollow(widget.uid, was).then((_) {
+                                  if (mounted) setState(() => _fol = null);
+                                }).catchError((e) {
+                                  if (!mounted) return;
+                                  setState(() => _fol = null);
+                                  final code = e is FirebaseException ? e.code : e.runtimeType.toString();
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${AuthService.errorText(e)} ($code)')));
+                                });
+                              },
                               style: FilledButton.styleFrom(
-                                backgroundColor: mf.contains(widget.uid) ? c.sf2 : c.ac,
+                                backgroundColor: isFol ? c.sf2 : c.ac,
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                               ),
-                              child: Text(mf.contains(widget.uid) ? 'Takipte' : 'Takip Et', style: jakarta(14, FontWeight.w800, mf.contains(widget.uid) ? c.mu : c.on)),
+                              child: Text(isFol ? 'Takipte' : 'Takip Et', style: jakarta(14, FontWeight.w800, isFol ? c.mu : c.on)),
                             ),
                     ),
                     const SizedBox(height: 16),
