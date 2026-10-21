@@ -24,7 +24,7 @@ String _tjkDate(String iso) {
   return '${p[2]}/${p[1]}/${p[0]}';
 }
 
-String _era(String iso) => iso < isoToday() ? 'yesterday' : 'today';
+String _era(String iso) => iso.compareTo(isoToday()) < 0 ? 'yesterday' : 'today';
 
 Future<String> _fetch(String url, {int sec = 20, int retry = 2}) async {
   Object? last;

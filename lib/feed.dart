@@ -5,6 +5,7 @@ import 'auth_service.dart';
 import 'bets.dart';
 import 'scoring.dart';
 import 'profile.dart';
+import 'shell.dart' show IconBox;
 import 'theme.dart';
 
 FirebaseFirestore get _db => FirebaseFirestore.instance;
