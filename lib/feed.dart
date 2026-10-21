@@ -159,11 +159,19 @@ class _FeedPageState extends State<FeedPage> {
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _posts = _db.collection('posts').orderBy('ts', descending: true).limit(100).snapshots();
   late final Stream<DocumentSnapshot<Map<String, dynamic>>> _me = _db.collection('users').doc(_myUid).snapshots();
 
+  Timer? _bumpT;
+
   @override
   void initState() {
     super.initState();
     TjkStore.i.ensureLoaded();
-    void bump() { if (mounted) setState(() => _ver++); }
+    // 3 Firestore akışı art arda gelince feed'i 3 kez baştan hesaplamasın
+    void bump() {
+      _bumpT ??= Timer(const Duration(milliseconds: 150), () {
+        _bumpT = null;
+        if (mounted) setState(() => _ver++);
+      });
+    }
 
     _subs.add(_db.collection('users').limit(300).snapshots().listen((s) { _users = s.docs; bump(); }, onError: (_) {}));
     _subs.add(_db.collection('grants').limit(500).snapshots().listen((s) { _bonus = {for (final d in s.docs) d.id: ((d.data()['pts'] as num?)?.toDouble() ?? 0) + ((d.data()['keep'] as num?)?.toDouble() ?? 0)}; bump(); }, onError: (_) {}));
@@ -172,6 +180,7 @@ class _FeedPageState extends State<FeedPage> {
 
   @override
   void dispose() {
+    _bumpT?.cancel();
     for (final s in _subs) { s.cancel(); }
     _ctl.dispose();
     super.dispose();

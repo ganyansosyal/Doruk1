@@ -46,7 +46,7 @@ Future<File?> _diskFile(String url) async {
   try {
     var d = _cacheDir;
     if (d == null) {
-      d = Directory('${(await getTemporaryDirectory()).path}/tjk');
+      d = Directory('${(await getApplicationSupportDirectory()).path}/tjk');
       if (!await d.exists()) await d.create(recursive: true);
       _cacheDir = d;
     }
@@ -75,7 +75,20 @@ Future<String> _fetch(String url, {int sec = 20, int retry = 2, int ttl = 0, int
       }
     } catch (_) {}
   }
-  final body = await _fetchRaw(url, sec: sec, retry: retry);
+  String body;
+  try {
+    body = await _fetchRaw(url, sec: sec, retry: retry);
+  } catch (e) {
+    // İnternet yok/TJK yanıt vermiyor: eski de olsa diskteki kopyayı göster
+    try {
+      final ff = f ?? await _diskFile(url);
+      if (ff != null && await ff.exists()) {
+        final old = await ff.readAsString();
+        if (old.isNotEmpty) return old;
+      }
+    } catch (_) {}
+    rethrow;
+  }
   if (ttl > 0) {
     if (_htmlCache.length > 40) _htmlCache.clear();
     _htmlCache[url] = (t: DateTime.now(), body: body);
@@ -888,27 +901,37 @@ class TjkStore extends ChangeNotifier {
   List<int>? resOf(String city, int no) => results[city]?[no]?.sira;
 
   Future<void> load(String newIso) async {
+    // Aynı gün yenileniyorsa mevcut veriyi silme: ekran boşalıp baştan çizilmesin
+    final keep = newIso == iso && cities.isNotEmpty;
     iso = newIso;
-    loading = true;
+    loading = !keep;
     error = null;
-    cities = [];
-    program.clear();
-    results.clear();
+    if (!keep) {
+      cities = [];
+      program.clear();
+      results.clear();
+    }
     notifyListeners();
     try {
-      cities = await getCities(iso);
-      notifyListeners();
-      await Future.wait(cities.map((c) async {
+      final nc = await getCities(iso);
+      if (!keep) {
+        cities = nc;
+        notifyListeners();
+      }
+      final np = <String, List<Race>>{};
+      await Future.wait(nc.map((c) async {
         try {
-          program[c.name] = await getProgram(c, iso);
+          np[c.name] = await getProgram(c, iso);
         } catch (_) {
-          program[c.name] = [];
+          np[c.name] = keep ? (program[c.name] ?? []) : [];
         }
+        if (!keep) program[c.name] = np[c.name]!;
       }));
-      cities = cities.where((c) => (program[c.name] ?? []).isNotEmpty).toList();
+      if (keep) program.addAll(np);
+      cities = nc.where((c) => (np[c.name] ?? []).isNotEmpty).toList();
       if (cities.isEmpty) error = 'Bu tarih için koşu programı bulunamadı.';
     } catch (e) {
-      error = e.toString().replaceFirst('Exception: ', '');
+      if (!keep) error = e.toString().replaceFirst('Exception: ', '');
     }
     loading = false;
     notifyListeners();

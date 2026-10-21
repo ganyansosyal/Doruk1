@@ -82,6 +82,7 @@ class _PredictPageState extends State<PredictPage> {
     super.initState();
     s.addListener(_onStore);
     isAdminNotifier.addListener(_onStore);
+    predictJump.addListener(_onJump);
     if (s.cities.isEmpty) {
       s.ensureLoaded();
     } else {
@@ -93,6 +94,7 @@ class _PredictPageState extends State<PredictPage> {
   void dispose() {
     s.removeListener(_onStore);
     isAdminNotifier.removeListener(_onStore);
+    predictJump.removeListener(_onJump);
     super.dispose();
   }
 
@@ -112,6 +114,11 @@ class _PredictPageState extends State<PredictPage> {
       _goFirstLeg();
     }
     _applyJump();
+  }
+
+  // Sekme canlı kaldığı için 'koşuya git' isteğini burada yakalıyoruz
+  void _onJump() {
+    if (mounted && predictJump.value != null) setState(_applyJump);
   }
 
   void _applyJump() {
