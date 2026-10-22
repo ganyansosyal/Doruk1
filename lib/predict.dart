@@ -990,6 +990,48 @@ Future<void> _playVideo(String url, String title, String horseName, [AtRow? row]
   }
 }
 
+// Son 6 koşu bitiş sırası (üstte pist harfi: Ç çim, K kum, S sentetik) + takı çipleri
+Widget _son6Row(AppColors c, Horse h) {
+  Color pc(String p) => p == 'Ç' ? const Color(0xFF1A9B5C) : p == 'K' ? const Color(0xFFA8793D) : const Color(0xFF3B6FD8);
+  Widget chip(String n) {
+    final v = int.tryParse(n);
+    Color bg = const Color(0x24788296), fg = c.mu;
+    if (n == '1') { bg = const Color(0x38D4A000); fg = const Color(0xFF9A7000); }
+    else if (n == '2') { bg = const Color(0x3D7887A0); fg = const Color(0xFF566274); }
+    else if (n == '3') { bg = const Color(0x33B06432); fg = const Color(0xFF8A4B1F); }
+    else if (n == '0' || (v != null && v >= 6)) { bg = const Color(0x26E5484D); fg = const Color(0xFFC53030); }
+    return Container(
+      constraints: const BoxConstraints(minWidth: 24),
+      height: 26,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
+      child: Text(n, style: jakarta(14, FontWeight.w800, fg)),
+    );
+  }
+  return Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+    if (h.son6.isNotEmpty) ...[
+      Padding(padding: const EdgeInsets.only(bottom: 6, right: 8), child: Text('SON 6', style: jakarta(11, FontWeight.w800, c.mu).copyWith(letterSpacing: 0.4))),
+      for (var i = 0; i < h.son6.length; i++)
+        Padding(
+          padding: const EdgeInsets.only(right: 4),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            SizedBox(height: 14, child: Text(i < h.son6p.length ? h.son6p[i] : '', style: jakarta(10, FontWeight.w800, i < h.son6p.length && h.son6p[i].isNotEmpty ? pc(h.son6p[i]) : c.mu))),
+            chip(h.son6[i]),
+          ]),
+        ),
+    ],
+    const Spacer(),
+    for (final t in h.taki.take(4))
+      Container(
+        margin: const EdgeInsets.only(left: 4, bottom: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+        decoration: BoxDecoration(color: c.ac.withAlpha(22), borderRadius: BorderRadius.circular(12), border: Border.all(color: c.ac.withAlpha(80))),
+        child: Text(t.k, style: jakarta(11.5, FontWeight.w800, c.ac)),
+      ),
+  ]);
+}
+
 Widget _horseDetail(AppColors c, Horse h, String key) {
   final sik = h.siklet == null ? '' : h.siklet!.toStringAsFixed(h.siklet! % 1 == 0 ? 0 : 1).replaceAll('.', ',');
   final kgsN = int.tryParse(h.kgs.trim());
@@ -1226,6 +1268,10 @@ Widget _horseDetail(AppColors c, Horse h, String key) {
                 child: on ? (order > 0 ? Text('$order', style: jakarta(12, FontWeight.w800, c.on)) : Icon(Icons.check, color: c.on, size: 16)) : Icon(Icons.add, color: c.ac, size: 18),
               ),
             ]),
+            if (h.son6.isNotEmpty || h.taki.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _son6Row(c, h),
+            ],
             const SizedBox(height: 6),
             Builder(builder: (_) {
               final open = _detOpen.contains('$_city|$_race|${h.no}');
