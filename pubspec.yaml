@@ -19,6 +19,7 @@ dependencies:
   url_launcher: ^6.2.0
   path_provider: ^2.1.0
   video_player: ^2.9.0
+  youtube_player_iframe: ^6.0.2
   flutter_displaymode: any
 
 dev_dependencies:
