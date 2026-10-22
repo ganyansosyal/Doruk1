@@ -171,8 +171,6 @@ class _FeedPageState extends State<FeedPage> {
   }
 
   String _filter = 'all';
-  final _ctl = TextEditingController();
-  bool _busy = false;
 
   final _subs = <StreamSubscription>[];
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _users = [];
@@ -249,7 +247,6 @@ class _FeedPageState extends State<FeedPage> {
     _scroll.dispose();
     _bumpT?.cancel();
     for (final s in _subs) { s.cancel(); }
-    _ctl.dispose();
     super.dispose();
   }
 
@@ -266,25 +263,6 @@ class _FeedPageState extends State<FeedPage> {
       ]).timeout(const Duration(seconds: 8));
     } catch (_) {}
     if (mounted) setState(() => _ver++);
-  }
-
-  Future<void> _share() async {
-    final t = _ctl.text.trim();
-    final me = profileNotifier.value;
-    if (t.isEmpty || _busy || me == null) return;
-    setState(() => _busy = true);
-    try {
-      final ts = DateTime.now().millisecondsSinceEpoch;
-      await _db.collection('posts').doc('${ts}_${me.uid}').set({
-        'uid': me.uid, 'authorName': me.name, 'handle': me.handle, 'ts': ts, 'text': t.length > 500 ? t.substring(0, 500) : t, 'coupon': null, 'likedBy': <String>[], 'comments': <Map<String, dynamic>>[],
-      });
-      _ctl.clear();
-      if (mounted) FocusScope.of(context).unfocus();
-    } catch (e) {
-      if (mounted) _toast(context, AuthService.errorText(e));
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
   }
 
   void _syncRank(Object snap, List<Post> posts) {
@@ -366,8 +344,6 @@ class _FeedPageState extends State<FeedPage> {
               _NextRaceBar(onOpen: widget.onOpenRace),
               _people(c, following),
               _filters(c, fc),
-              const SizedBox(height: 8),
-              _composer(c),
               const SizedBox(height: 10),
               if (list.isEmpty)
                 Padding(padding: const EdgeInsets.all(20), child: Text(_filter == 'follow' ? 'Takip ettiğin kimsenin paylaşımı yok.' : _filter == 'mine' ? 'Henüz bir şey paylaşmadın.' : _filter == 'lost' ? 'Bugün kaybeden kupon yok.' : _filter == 'winners' ? 'Bugün tutan kupon yok.' : _filter == 'tracked' ? 'Takip ettiğin kupon yok.' : 'Henüz paylaşım yok.', textAlign: TextAlign.center, style: jakarta(13, FontWeight.w600, c.mu))),
@@ -562,26 +538,6 @@ class _FeedPageState extends State<FeedPage> {
         Row(children: [chip(items[0]), const SizedBox(width: 6), chip(items[1]), const SizedBox(width: 6), chip(items[2])]),
         const SizedBox(height: 8),
         Row(children: [chip(items[3]), const SizedBox(width: 6), chip(items[4]), const SizedBox(width: 6), chip(items[5])]),
-      ]),
-    );
-  }
-
-  Widget _composer(AppColors c) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(10, 2, 4, 2),
-      decoration: BoxDecoration(color: c.sf, borderRadius: BorderRadius.circular(16), border: Border.all(color: c.ln)),
-      child: Row(children: [
-        Expanded(
-          child: TextField(
-            controller: _ctl,
-            maxLength: 500,
-            maxLines: 3,
-            minLines: 1,
-            style: jakarta(13, FontWeight.w600, c.tx),
-            decoration: InputDecoration(border: InputBorder.none, counterText: '', hintText: 'Bankonu yaz...', hintStyle: jakarta(13, FontWeight.w500, c.mu)),
-          ),
-        ),
-        TextButton(onPressed: _busy ? null : _share, child: Text('Paylaş', style: jakarta(13, FontWeight.w800, c.ac))),
       ]),
     );
   }

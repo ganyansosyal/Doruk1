@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'auth_service.dart';
 import 'feed.dart';
@@ -7,6 +8,7 @@ import 'profile.dart';
 import 'chat.dart';
 import 'extras.dart';
 import 'predict.dart';
+import 'preload.dart';
 import 'results.dart';
 import 'settle.dart';
 import 'theme.dart';
@@ -22,6 +24,28 @@ class _ShellState extends State<Shell> {
   final GlobalKey<ScaffoldState> _key = GlobalKey<ScaffoldState>();
   int _tab = 0;
   final Set<int> _built = {0};
+
+  // Üstteki kullanıcı arama: yazdıkça sonuçlar sayfanın üstünde listelenir (ayrı sayfa açılmaz)
+  final TextEditingController _sc = TextEditingController();
+  final FocusNode _sf = FocusNode();
+  String _sq = '';
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>? _users;
+
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _loadUsers() {
+    if (Preload.users.isNotEmpty) return Future.value(Preload.users);
+    return _users ??= FirebaseFirestore.instance.collection('users').limit(300).get().then((v) => v.docs);
+  }
+
+  void _onSearch(String v) {
+    setState(() => _sq = v.trim().toLowerCase());
+    if (_sq.isNotEmpty) _loadUsers();
+  }
+
+  void _clearSearch() {
+    _sc.clear();
+    _sf.unfocus();
+    setState(() => _sq = '');
+  }
 
   Widget _page(int i) {
     switch (i) {
@@ -44,6 +68,40 @@ class _ShellState extends State<Shell> {
     }
   }
 
+  Widget _searchResults(AppColors c) {
+    return Container(
+      color: c.bg,
+      child: FutureBuilder<List<QueryDocumentSnapshot<Map<String, dynamic>>>>(
+        future: _loadUsers(),
+        builder: (context, snap) {
+          if (!snap.hasData) return Center(child: CircularProgressIndicator(color: c.ac));
+          final q = _sq.startsWith('@') ? _sq.substring(1) : _sq;
+          final l = snap.data!.where((d) {
+            final m = d.data();
+            return (m['name'] ?? '').toString().toLowerCase().contains(q) || (m['handle'] ?? '').toString().toLowerCase().contains(q);
+          }).take(40).toList();
+          if (l.isEmpty) return Center(child: Text('Kullanıcı bulunamadı.', style: jakarta(14, FontWeight.w600, c.mu)));
+          return ListView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.only(top: 4, bottom: 16),
+            children: [
+              for (final d in l)
+                ListTile(
+                  onTap: () {
+                    _clearSearch();
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileRoute(uid: d.id)));
+                  },
+                  leading: Avatar(profile: Profile.fromMap(d.id, d.data()), size: 44),
+                  title: Text((d.data()['name'] ?? '').toString(), style: jakarta(15, FontWeight.w800, c.tx)),
+                  subtitle: Text('@${d.data()['handle'] ?? ''}', style: jakarta(13, FontWeight.w600, c.mu)),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   static const _titles = ['Akış', 'Liderler', 'Tahmin Yap', 'Sonuçlar', 'Profilim'];
 
   @override
@@ -55,6 +113,8 @@ class _ShellState extends State<Shell> {
 
   @override
   void dispose() {
+    _sc.dispose();
+    _sf.dispose();
     Settler.stop();
     super.dispose();
   }
@@ -81,7 +141,10 @@ class _ShellState extends State<Shell> {
               children: [
                 TopBar(
                   onMenu: () => _key.currentState?.openDrawer(),
-                  onSearch: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SearchPage())),
+                  controller: _sc,
+                  focusNode: _sf,
+                  onSearch: _onSearch,
+                  onClear: _clearSearch,
                   onBell: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsPage())),
                 ),
                 Expanded(
@@ -89,10 +152,13 @@ class _ShellState extends State<Shell> {
                     padding: EdgeInsets.only(bottom: 70 + bottom),
                     // Sekmeler bir kez kurulur, sonra canlı kalır (IndexedStack):
                     // sekme değiştirince baştan çizim ve yükleme ekranı olmaz.
-                    child: IndexedStack(
-                      index: _tab,
-                      children: [for (var i = 0; i < 5; i++) _built.contains(i) ? _page(i) : const SizedBox.shrink()],
-                    ),
+                    child: Stack(children: [
+                      IndexedStack(
+                        index: _tab,
+                        children: [for (var i = 0; i < 5; i++) _built.contains(i) ? _page(i) : const SizedBox.shrink()],
+                      ),
+                      if (_sq.isNotEmpty) Positioned.fill(child: _searchResults(c)),
+                    ]),
                   ),
                 ),
               ],
@@ -175,8 +241,11 @@ class _ShellState extends State<Shell> {
 }
 
 class TopBar extends StatelessWidget {
-  final VoidCallback onMenu, onSearch, onBell;
-  const TopBar({super.key, required this.onMenu, required this.onSearch, required this.onBell});
+  final VoidCallback onMenu, onBell, onClear;
+  final ValueChanged<String> onSearch;
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  const TopBar({super.key, required this.onMenu, required this.onSearch, required this.onBell, required this.onClear, required this.controller, required this.focusNode});
 
   @override
   Widget build(BuildContext context) {
@@ -195,11 +264,9 @@ class TopBar extends StatelessWidget {
           GestureDetector(onLongPress: () => perfOverlay.value = !perfOverlay.value, child: const Brand(size: 19)),
           const SizedBox(width: 10),
           Expanded(
-            child: GestureDetector(
-              onTap: onSearch,
-              child: Container(
+            child: Container(
               height: 40,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
+              padding: const EdgeInsets.only(left: 10, right: 4),
               decoration: BoxDecoration(
                 color: c.sf,
                 borderRadius: BorderRadius.circular(14),
@@ -210,14 +277,33 @@ class TopBar extends StatelessWidget {
                   Icon(Icons.search, size: 18, color: c.ac),
                   const SizedBox(width: 6),
                   Expanded(
-                    child: Text('Kullanıcı ara',
-                        maxLines: 1,
-                        overflow: TextOverflow.clip,
-                        style: jakarta(13, FontWeight.w600, c.mu)),
+                    child: TextField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      onChanged: onSearch,
+                      textInputAction: TextInputAction.search,
+                      style: jakarta(13, FontWeight.w600, c.tx),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        border: InputBorder.none,
+                        hintText: 'Kullanıcı ara',
+                        hintStyle: jakarta(13, FontWeight.w600, c.mu),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ),
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: controller,
+                    builder: (_, v, __) => v.text.isEmpty
+                        ? const SizedBox(width: 6)
+                        : GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: onClear,
+                            child: Padding(padding: const EdgeInsets.all(8), child: Icon(Icons.close, size: 16, color: c.mu)),
+                          ),
                   ),
                 ],
               ),
-            ),
             ),
           ),
           const SizedBox(width: 8),
