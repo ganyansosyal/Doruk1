@@ -5,6 +5,7 @@ import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:flutter/services.dart';
 import 'firebase_options.dart';
 import 'theme.dart';
+import 'preload.dart';
 import 'splash.dart';
 
 const _barGreen = Color(0xFF0E7C5B);
@@ -30,6 +31,7 @@ Future<void> main() async {
     } catch (_) {}
   }
   await initFirebase();
+  Preload.start(); // akış verisi splash sürerken arka planda gelsin
   runApp(const GanyanApp());
 }
 

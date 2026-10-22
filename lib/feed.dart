@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'auth_service.dart';
 import 'bets.dart';
 import 'coupon_view.dart';
+import 'preload.dart';
 import 'share_sheet.dart';
 import 'scoring.dart';
 import 'profile.dart';
@@ -190,22 +191,31 @@ class _FeedPageState extends State<FeedPage> {
     // İnternet yoksa/6 sn'de gelmezse önbellekle devam eder.
     // Tahminciler satırı, "+" rozetleri ve sıralama açılışta kademe kademe gelip zıplamasın diye
     // hepsini (paylaşım, kullanıcılar, puanlar, moderatörler, ben) birlikte alıp tek seferde göster.
-    () async {
-      const srv = GetOptions(source: Source.server);
-      try {
-        final fu = _db.collection('users').limit(300).get(srv);
-        final fg = _db.collection('grants').limit(500).get(srv);
-        final fm = _db.collection('mods').limit(100).get(srv);
-        final fme = _db.collection('users').doc(_myUid).get(srv);
-        final fp = _db.collection('posts').orderBy('ts', descending: true).limit(100).get(srv);
-        await Future.wait<Object?>([fp, fu, fg, fm, fme]).timeout(const Duration(seconds: 6));
-        _users = (await fu).docs;
-        _bonus = {for (final d in (await fg).docs) d.id: ((d.data()['pts'] as num?)?.toDouble() ?? 0) + ((d.data()['keep'] as num?)?.toDouble() ?? 0)};
-        _mods = (await fm).docs.map((d) => d.id).toSet();
-        _meInit = (await fme).data();
-      } catch (_) {}
-      if (mounted) setState(() => _fresh = true);
-    }();
+    if (Preload.done && Preload.uid == _myUid) {
+      // Splash sırasında alınan veri hazır: spinner/zıplama yok, akış doğrudan dolu açılır
+      _users = Preload.users;
+      _bonus = Preload.bonus;
+      _mods = Preload.mods;
+      _meInit = Preload.me;
+      _fresh = true;
+    } else {
+      () async {
+        const srv = GetOptions(source: Source.server);
+        try {
+          final fu = _db.collection('users').limit(300).get(srv);
+          final fg = _db.collection('grants').limit(500).get(srv);
+          final fm = _db.collection('mods').limit(100).get(srv);
+          final fme = _db.collection('users').doc(_myUid).get(srv);
+          final fp = _db.collection('posts').orderBy('ts', descending: true).limit(100).get(srv);
+          await Future.wait<Object?>([fp, fu, fg, fm, fme]).timeout(const Duration(seconds: 6));
+          _users = (await fu).docs;
+          _bonus = {for (final d in (await fg).docs) d.id: ((d.data()['pts'] as num?)?.toDouble() ?? 0) + ((d.data()['keep'] as num?)?.toDouble() ?? 0)};
+          _mods = (await fm).docs.map((d) => d.id).toSet();
+          _meInit = (await fme).data();
+        } catch (_) {}
+        if (mounted) setState(() => _fresh = true);
+      }();
+    }
     // 3 Firestore akışı art arda gelince feed'i 3 kez baştan hesaplamasın
     void bump() {
       _bumpT ??= Timer(const Duration(milliseconds: 150), () {

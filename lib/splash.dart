@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'theme.dart';
 import 'auth_page.dart';
+import 'preload.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -16,14 +17,21 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
-    _ctl.forward().whenComplete(() {
-      if (!mounted) return;
-      Navigator.of(context).pushReplacement(PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 400),
-        pageBuilder: (_, __, ___) => const AuthGate(),
-        transitionsBuilder: (_, a, __, child) => FadeTransition(opacity: a, child: child),
-      ));
-    });
+    _go();
+  }
+
+  // Çubuk %90'a kadar dolar; akış verisi hazır olunca %100 olup kapanır (en geç 9 sn)
+  Future<void> _go() async {
+    await _ctl.animateTo(0.9, duration: const Duration(milliseconds: 1500), curve: Curves.easeOut);
+    await Preload.start().timeout(const Duration(seconds: 9), onTimeout: () {});
+    if (!mounted) return;
+    await _ctl.animateTo(1.0, duration: const Duration(milliseconds: 250));
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(PageRouteBuilder(
+      transitionDuration: const Duration(milliseconds: 400),
+      pageBuilder: (_, __, ___) => const AuthGate(),
+      transitionsBuilder: (_, a, __, child) => FadeTransition(opacity: a, child: child),
+    ));
   }
 
   @override
