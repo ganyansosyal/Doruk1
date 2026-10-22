@@ -12,6 +12,8 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'frames.dart';
+
 import 'theme.dart';
 
 const handleMin = 3, handleMax = 20, nameMax = 30;
@@ -26,7 +28,7 @@ String cleanHandle(String s) {
 }
 
 class Profile {
-  final String uid, name, handle, bio, photo, cover, bioColor;
+  final String uid, name, handle, bio, photo, cover, bioColor, frame;
   final bool isAdmin;
   Profile({
     required this.uid,
@@ -36,8 +38,21 @@ class Profile {
     this.photo = '',
     this.cover = '',
     this.bioColor = '',
+    this.frame = '',
     this.isAdmin = false,
   });
+
+  Profile copyWith({String? frame}) => Profile(
+        uid: uid,
+        name: name,
+        handle: handle,
+        bio: bio,
+        photo: photo,
+        cover: cover,
+        bioColor: bioColor,
+        frame: frame ?? this.frame,
+        isAdmin: isAdmin,
+      );
 
   factory Profile.fromMap(String uid, Map<String, dynamic> m) => Profile(
         uid: uid,
@@ -47,6 +62,7 @@ class Profile {
         photo: (m['photo'] ?? '').toString(),
         cover: (m['cover'] ?? '').toString(),
         bioColor: (m['bioColor'] ?? '').toString(),
+        frame: (m['frame'] ?? '').toString(),
         isAdmin: m['isAdmin'] == true,
       );
 
@@ -245,7 +261,8 @@ class _AvatarState extends State<Avatar> {
     final name = (widget.profile?.name ?? '').trim();
     final letter = name.isEmpty ? '?' : name.substring(0, 1).toUpperCase();
     final img = _img;
-    return Container(
+    final fr = frameById(widget.profile?.frame);
+    final core = Container(
       width: size,
       height: size,
       alignment: Alignment.center,
@@ -255,6 +272,7 @@ class _AvatarState extends State<Avatar> {
           ? RawImage(image: img, width: size, height: size, fit: BoxFit.cover, filterQuality: FilterQuality.medium)
           : _fallback(letter, size),
     );
+    return fr == null ? core : framedAvatar(core, size, fr);
   }
 }
 

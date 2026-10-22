@@ -6,6 +6,8 @@ import 'scoring.dart';
 import 'shell.dart' show IconBox;
 import 'theme.dart';
 
+export 'shop.dart' show ShopPage;
+
 Widget _scaffold(BuildContext context, String title, Widget body) {
   final c = AppColors.of(context);
   return Scaffold(
@@ -76,27 +78,6 @@ class RulesPage extends StatelessWidget {
           _row(c, 'Günlük puan tavanı', '${gunlukTavan.toInt()} puan'),
         ], note: 'Aynı koşuya aynı bahisten en fazla 2 kupon yapabilirsin. Bir günde en fazla ${gunlukTavan.toInt()} puan toplarsın.'),
       ]),
-    );
-  }
-}
-
-/* ---------------- Mağaza ---------------- */
-
-class ShopPage extends StatelessWidget {
-  const ShopPage({super.key});
-  @override
-  Widget build(BuildContext context) {
-    final c = AppColors.of(context);
-    return _scaffold(
-      context,
-      'Mağaza',
-      Center(child: Padding(padding: const EdgeInsets.all(30), child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Text('💎', style: TextStyle(fontSize: 46)),
-        const SizedBox(height: 10),
-        Text('Profil çerçeveleri yakında', style: jakarta(18, FontWeight.w800, c.tx)),
-        const SizedBox(height: 6),
-        Text('Mağaza bir sonraki sürümde açılacak.', textAlign: TextAlign.center, style: jakarta(14, FontWeight.w500, c.mu)),
-      ]))),
     );
   }
 }

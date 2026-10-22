@@ -11,6 +11,7 @@ import 'scoring.dart';
 import 'tjk.dart';
 
 final ValueNotifier<bool> isAdminNotifier = ValueNotifier(false);
+final ValueNotifier<bool> isModNotifier = ValueNotifier(false);
 
 class _Resume with WidgetsBindingObserver {
   @override
@@ -22,7 +23,7 @@ class _Resume with WidgetsBindingObserver {
 /// Arka planda: yönetici bilgisini izler, benim kuponlarımın sonuçlarını Firestore'a işler.
 /// Sonuçlar sekmesine girilmesi gerekmez: bekleyen kuponların koşu sonuçları kendi zamanlayıcısıyla çekilir.
 class Settler {
-  static StreamSubscription? _a, _b, _c;
+  static StreamSubscription? _a, _b, _c, _m;
   static List<Post> _mine = [], _all = [];
   static bool _busy = false, _again = false;
   static String _uid = '';
@@ -62,6 +63,7 @@ class Settler {
     _uid = uid;
     final db = FirebaseFirestore.instance;
     _a = db.collection('users').doc(uid).snapshots().listen((s) => isAdminNotifier.value = s.data()?['isAdmin'] == true, onError: (_) {});
+    _m = db.collection('mods').doc(uid).snapshots().listen((s) => isModNotifier.value = s.exists, onError: (_) {});
     _b = db.collection('posts').where('uid', isEqualTo: uid).limit(100).snapshots().listen((s) {
       _mine = s.docs.map((d) => Post(d.id, d.data())).toList();
       _run();
@@ -80,6 +82,8 @@ class Settler {
 
   static void stop() {
     _a?.cancel();
+    _m?.cancel();
+    isModNotifier.value = false;
     _b?.cancel();
     _c?.cancel();
     TjkStore.i.removeListener(_run);

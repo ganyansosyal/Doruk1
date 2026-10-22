@@ -7,7 +7,10 @@ import 'package:flutter/material.dart';
 
 import 'auth_service.dart';
 import 'feed.dart' show Post, fmtStamp;
+import 'frames.dart';
+import 'profile.dart' show ProfileRoute;
 import 'scoring.dart';
+import 'settle.dart' show isAdminNotifier, isModNotifier;
 import 'theme.dart';
 
 /* =====================================================================
@@ -1079,11 +1082,27 @@ class _AdminSheetState extends State<_AdminSheet> {
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(16), border: Border.all(color: bd)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Avatar(profile: Profile.fromMap(uid, u), size: 50),
+          GestureDetector(
+            onTap: () {
+              final nav = Navigator.of(context);
+              nav.pop(); // yönetim panelini kapat
+              nav.push(MaterialPageRoute(builder: (_) => ProfileRoute(uid: uid)));
+            },
+            child: Avatar(profile: Profile.fromMap(uid, u), size: 50),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('$name${me ? ' (sen)' : ''}', maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(16, FontWeight.w800, c.tx)),
+              GestureDetector(
+                onTap: me
+                    ? null
+                    : () => showUserAdminMenu(context, uid: uid, name: name, targetAdmin: u['isAdmin'] == true, onProfile: () {
+                          final nav = Navigator.of(context);
+                          nav.pop();
+                          nav.push(MaterialPageRoute(builder: (_) => ProfileRoute(uid: uid)));
+                        }),
+                child: Text('$name${me ? ' (sen)' : ''}', maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(16, FontWeight.w800, c.tx)),
+              ),
               Text('@${u['handle'] ?? ''}${'${m['email'] ?? ''}'.isNotEmpty ? ' · ${m['email']}' : ''}', maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(13, FontWeight.w600, c.mu)),
             ]),
           ),
@@ -1306,6 +1325,7 @@ class _GiftDialogState extends State<_GiftDialog> {
   double? _total;
   double _manual = 0;
   bool _mod = false, _zArm = false, _busy = false;
+  Set<String> _have = {};
   Timer? _zT;
 
   String get _me => profileNotifier.value?.uid ?? FirebaseAuth.instance.currentUser?.uid ?? '';
@@ -1343,8 +1363,10 @@ class _GiftDialogState extends State<_GiftDialog> {
     try {
       final r = await _calc();
       final m = await _db.collection('mods').doc(widget.uid).get();
+      final gs = await _db.collection('grants').doc(widget.uid).get();
       if (!mounted) return;
       setState(() {
+        _have = {for (final i in ((gs.data()?['frames'] as List?) ?? const [])) '$i'};
         _total = r.raw;
         _manual = r.manual;
         _mod = m.exists;
@@ -1417,6 +1439,42 @@ class _GiftDialogState extends State<_GiftDialog> {
       _t(_err(e));
     }
   }
+
+  Future<void> _giveFrame(FrameDef f) async {
+    if (_have.contains(f.id)) return;
+    try {
+      await _db.collection('grants').doc(widget.uid).set({
+        'frames': FieldValue.arrayUnion([f.id]),
+        'at': _now(),
+        'note': 'Yönetici sana ${f.name} çerçevesini hediye etti',
+      }, SetOptions(merge: true));
+      if (mounted) setState(() => _have = {..._have, f.id});
+      _t('${f.name} → ${widget.name}');
+    } catch (e) {
+      _t(_err(e));
+    }
+  }
+
+  Widget _frameGrid(AppColors c) => Wrap(spacing: 8, runSpacing: 8, children: [
+        for (final f in kFrames)
+          GestureDetector(
+            onTap: () => _giveFrame(f),
+            child: Opacity(
+              opacity: _have.contains(f.id) ? 0.55 : 1,
+              child: Container(
+                width: 92,
+                padding: const EdgeInsets.fromLTRB(6, 22, 6, 8),
+                decoration: BoxDecoration(color: c.sf2, borderRadius: BorderRadius.circular(14), border: Border.all(color: _have.contains(f.id) ? c.ac : c.ln, width: 1.5)),
+                child: Column(children: [
+                  Avatar(profile: Profile(uid: widget.uid, name: widget.name, handle: '', frame: f.id), size: 46),
+                  const SizedBox(height: 6),
+                  Text(f.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(11.5, FontWeight.w800, c.tx)),
+                  Text(_have.contains(f.id) ? 'Verildi' : 'Gönder', style: jakarta(11, FontWeight.w800, _have.contains(f.id) ? c.ac : c.mu)),
+                ]),
+              ),
+            ),
+          ),
+      ]);
 
   Widget _sec(AppColors c, String title, List<Widget> kids) => Padding(
         padding: const EdgeInsets.only(bottom: 14),
@@ -1523,10 +1581,290 @@ class _GiftDialogState extends State<_GiftDialog> {
                 const SizedBox(height: 6),
                 Text('Moderatör sadece kullanıcıları yasaklayabilir ve yasağı kaldırabilir. Başka yetkisi olmaz.', style: jakarta(12, FontWeight.w500, c.mu)),
               ]),
+            _sec(c, 'Hediye çerçeve', [_frameGrid(c)]),
             Row(children: [_b(c, 'Kapat', () => Navigator.pop(context), bg: c.sf2, fg: c.tx)]),
           ]),
         ),
       ),
     );
   }
+}
+
+
+/* =====================================================================
+   HIZLI YÖNETİM (profil ve akıştan): moderatör / yönetici menüsü, yasakla, yasağı kaldır
+   (sitedeki admUserMenu / admBan / admToggleBan ile aynı)
+   ===================================================================== */
+
+bool canBanNow() => isAdminNotifier.value || isModNotifier.value;
+
+/// Yönetici herkesi (kendi hariç), moderatör ise yönetici ve moderatör olmayanları yönetebilir.
+bool canManageUser(String uid, {required bool targetAdmin, required bool targetMod}) {
+  final me = FirebaseAuth.instance.currentUser?.uid ?? '';
+  if (uid.isEmpty || uid == me) return false;
+  if (isAdminNotifier.value) return true;
+  return isModNotifier.value && !(targetAdmin || targetMod);
+}
+
+Widget _bnChip(AppColors c, String label, bool on, VoidCallback tap) => GestureDetector(
+      onTap: tap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(color: on ? c.ac : Colors.transparent, borderRadius: BorderRadius.circular(14), border: Border.all(color: on ? c.ac : c.ln)),
+        child: Text(label, style: jakarta(14, FontWeight.w800, on ? c.on : c.mu)),
+      ),
+    );
+
+Future<void> showBanDialog(BuildContext context, String uid) async {
+  final db = FirebaseFirestore.instance;
+  final me = FirebaseAuth.instance.currentUser?.uid ?? '';
+  Map<String, dynamic> u = {};
+  try {
+    u = (await db.collection('users').doc(uid).get()).data() ?? {};
+  } catch (_) {}
+  if (!context.mounted) return;
+  final c = AppColors.of(context);
+  final isA = isAdminNotifier.value;
+  const opts = [('1 Saat', 3600000), ('1 Gün', 86400000), ('7 Gün', 7 * 86400000), ('30 Gün', 30 * 86400000), ('Kalıcı', 0)];
+  var dur = 86400000;
+  var delPosts = false;
+  final reason = TextEditingController();
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setS) => AlertDialog(
+        backgroundColor: c.sf,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: Text('Yasakla: ${u['name'] ?? ''}', textAlign: TextAlign.center, style: jakarta(17, FontWeight.w800, c.tx)),
+        content: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Center(child: Text('Yasak süresi', style: jakarta(13.5, FontWeight.w600, c.mu))),
+            const SizedBox(height: 8),
+            Wrap(spacing: 6, runSpacing: 6, children: [for (final o in opts) _bnChip(c, o.$1, dur == o.$2, () => setS(() => dur = o.$2))]),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reason,
+              maxLength: 120,
+              style: jakarta(14, FontWeight.w600, c.tx),
+              decoration: InputDecoration(
+                counterText: '',
+                hintText: 'Sebep (isteğe bağlı)',
+                hintStyle: jakarta(14, FontWeight.w500, c.mu),
+                filled: true,
+                fillColor: c.sf2,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.ln)),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.ln)),
+              ),
+            ),
+            if (isA)
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                dense: true,
+                activeColor: c.ac,
+                value: delPosts,
+                onChanged: (v) => setS(() => delPosts = v == true),
+                title: Text('Paylaşımlarını da sil', style: jakarta(13.5, FontWeight.w700, c.tx)),
+              ),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Vazgeç', style: jakarta(14, FontWeight.w800, c.mu))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text('Yasakla', style: jakarta(14, FontWeight.w800, c.red))),
+        ],
+      ),
+    ),
+  );
+  final reasonTxt = reason.text.trim();
+  reason.dispose();
+  if (ok != true) return;
+  try {
+    await db.collection('bans').doc(uid).set({
+      'until': dur == 0 ? 0 : _now() + dur,
+      'reason': reasonTxt,
+      'by': me,
+      'at': _now(),
+      'name': u['name'] ?? '',
+      'handle': u['handle'] ?? '',
+    });
+    if (delPosts && isA) {
+      final q = await db.collection('posts').where('uid', isEqualTo: uid).get();
+      if (q.docs.isNotEmpty) {
+        final b = db.batch();
+        for (final d in q.docs) {
+          b.delete(d.reference);
+        }
+        await b.commit();
+      }
+    }
+    if (context.mounted) _toast(context, '${u['name'] ?? 'Kullanıcı'} yasaklandı');
+  } catch (e) {
+    if (context.mounted) _toast(context, _err(e));
+  }
+}
+
+Future<void> unbanUser(BuildContext context, String uid, String name) {
+  return _ask(context, 'Yasağı kaldır', '${name.isEmpty ? 'Kullanıcı' : name} için yasak kaldırılsın mı?', 'Kaldır',
+      () => FirebaseFirestore.instance.collection('bans').doc(uid).delete().then((_) {
+            if (context.mounted) _toast(context, 'Yasak kaldırıldı');
+          }).catchError((e) {
+            if (context.mounted) _toast(context, _err(e));
+          }));
+}
+
+/// Yasaklıysa yasağı kaldırır, değilse yasaklama penceresini açar.
+Future<void> toggleBanUser(BuildContext context, String uid, String name) async {
+  Map<String, dynamic>? b;
+  try {
+    b = (await FirebaseFirestore.instance.collection('bans').doc(uid).get()).data();
+  } catch (_) {}
+  if (!context.mounted) return;
+  if (banActive(b)) {
+    await unbanUser(context, uid, name);
+  } else {
+    await showBanDialog(context, uid);
+  }
+}
+
+/// Kullanıcı adına / avatara dokununca yönetici ve moderatöre açılan menü.
+Future<void> showUserAdminMenu(BuildContext context, {required String uid, required String name, bool targetAdmin = false, VoidCallback? onProfile}) async {
+  Map<String, dynamic>? b;
+  Profile? pr;
+  try {
+    final r = await Future.wait([
+      FirebaseFirestore.instance.collection('bans').doc(uid).get(),
+      AuthService.loadProfile(uid),
+    ]);
+    b = (r[0] as DocumentSnapshot<Map<String, dynamic>>).data();
+    pr = r[1] as Profile?;
+  } catch (_) {}
+  if (!context.mounted) return;
+  final banned = banActive(b);
+  final c = AppColors.of(context);
+  const red = Color(0xFFEF4444);
+  const blue = Color(0xFF2563EB);
+
+  Widget tile(IconData ic, String title, String sub, List<Color> g, VoidCallback tap, {bool danger = false}) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Material(
+          color: danger ? red.withAlpha(18) : c.sf2,
+          borderRadius: BorderRadius.circular(18),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: tap,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: danger ? red.withAlpha(60) : c.ln)),
+              child: Row(children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: g),
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [BoxShadow(color: g.last.withAlpha(90), blurRadius: 8, offset: const Offset(0, 3))],
+                  ),
+                  child: Icon(ic, size: 21, color: Colors.white),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(title, style: jakarta(14.5, FontWeight.w800, danger ? red : c.tx)),
+                    const SizedBox(height: 1),
+                    Text(sub, style: jakarta(11.5, FontWeight.w600, c.mu)),
+                  ]),
+                ),
+                Icon(Icons.chevron_right_rounded, size: 22, color: c.mu),
+              ]),
+            ),
+          ),
+        ),
+      );
+
+  await showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (ctx) => Container(
+      decoration: BoxDecoration(color: c.sf, borderRadius: const BorderRadius.vertical(top: Radius.circular(28)), border: Border.all(color: c.ln)),
+      padding: EdgeInsets.fromLTRB(16, 10, 16, 14 + MediaQuery.paddingOf(ctx).bottom),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(width: 44, height: 5, decoration: BoxDecoration(color: c.ln, borderRadius: BorderRadius.circular(3))),
+        const SizedBox(height: 16),
+        Row(children: [
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: c.ac, width: 2)),
+            child: Avatar(profile: pr, size: 52),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(18, FontWeight.w800, c.tx)),
+              const SizedBox(height: 4),
+              Row(children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                  decoration: BoxDecoration(color: c.ac.withAlpha(24), borderRadius: BorderRadius.circular(9)),
+                  child: Text('@${pr?.handle ?? ''}', style: jakarta(12, FontWeight.w700, c.ac)),
+                ),
+                if (banned) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                    decoration: BoxDecoration(color: red.withAlpha(24), borderRadius: BorderRadius.circular(9)),
+                    child: Text('Yasaklı', style: jakarta(12, FontWeight.w800, red)),
+                  ),
+                ],
+              ]),
+            ]),
+          ),
+        ]),
+        const SizedBox(height: 6),
+        Align(alignment: Alignment.centerLeft, child: Padding(padding: const EdgeInsets.only(top: 12, bottom: 10), child: Text('YÖNETİM İŞLEMLERİ', style: jakarta(11, FontWeight.w800, c.mu).copyWith(letterSpacing: 1.2)))),
+        if (onProfile != null)
+          tile(Icons.person_rounded, 'Profili aç', 'Paylaşımlarını ve puanını gör', [const Color(0xFF34D399), const Color(0xFF059669)], () {
+            Navigator.pop(ctx);
+            onProfile();
+          }),
+        if (isAdminNotifier.value)
+          tile(Icons.diamond_rounded, 'Puan / Hediye çerçeve', 'Puan ver, çerçeve hediye et, moderatör yap', [const Color(0xFFA855F7), const Color(0xFFDB2777)], () {
+            Navigator.pop(ctx);
+            showDialog(context: context, builder: (_) => _GiftDialog(uid: uid, name: name, targetAdmin: targetAdmin, parent: context));
+          }),
+        tile(
+          banned ? Icons.lock_open_rounded : Icons.block_rounded,
+          banned ? 'Yasağı kaldır' : 'Yasakla',
+          banned ? 'Kullanıcı tekrar giriş yapabilsin' : 'Süre seç, sebep yaz',
+          banned ? [const Color(0xFF60A5FA), blue] : [const Color(0xFFF87171), const Color(0xFFD92D20)],
+          () {
+            Navigator.pop(ctx);
+            if (banned) {
+              unbanUser(context, uid, name);
+            } else {
+              showBanDialog(context, uid);
+            }
+          },
+          danger: !banned,
+        ),
+        const SizedBox(height: 2),
+        SizedBox(
+          width: double.infinity,
+          height: 46,
+          child: TextButton(
+            style: TextButton.styleFrom(backgroundColor: c.sf2, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Vazgeç', style: jakarta(14, FontWeight.w800, c.mu)),
+          ),
+        ),
+      ]),
+    ),
+  );
+}
+
+
+/// Puan / hediye çerçeve penceresi (yönetici): liderlik tablosu ve menüden açılır.
+Future<void> showGiftDialog(BuildContext context, {required String uid, required String name, bool targetAdmin = false}) {
+  return showDialog<void>(context: context, builder: (_) => _GiftDialog(uid: uid, name: name, targetAdmin: targetAdmin, parent: context));
 }

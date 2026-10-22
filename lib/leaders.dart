@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import 'admin.dart' show showGiftDialog;
 import 'auth_service.dart';
 import 'feed.dart';
 import 'profile.dart';
 import 'scoring.dart';
+import 'settle.dart' show isAdminNotifier;
 import 'theme.dart';
 import 'tjk.dart' show liveResTick;
 
@@ -150,6 +152,28 @@ class _LeadersPageState extends State<LeadersPage> {
             Text(fmtPts(x.s.pts), style: jakarta(22, FontWeight.w800, c.ac)),
             Text('puan', style: jakarta(12, FontWeight.w600, c.mu)),
           ]),
+          ValueListenableBuilder<bool>(
+            valueListenable: isAdminNotifier,
+            builder: (context, adm, _) => !adm
+                ? const SizedBox.shrink()
+                : Padding(
+                    padding: const EdgeInsets.only(left: 12),
+                    child: GestureDetector(
+                      onTap: () => showGiftDialog(context, uid: x.d.id, name: u.name, targetAdmin: u.isAdmin),
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFFA855F7), Color(0xFFDB2777)]),
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: const [BoxShadow(color: Color(0x59A855F7), blurRadius: 10, offset: Offset(0, 4))],
+                        ),
+                        child: const Text('🎁', style: TextStyle(fontSize: 22)),
+                      ),
+                    ),
+                  ),
+          ),
         ]),
       ),
     );

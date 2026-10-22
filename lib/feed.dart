@@ -11,6 +11,7 @@ import 'preload.dart';
 import 'share_sheet.dart';
 import 'scoring.dart';
 import 'profile.dart';
+import 'admin.dart' show canManageUser, showUserAdminMenu, toggleBanUser;
 import 'settle.dart' show isAdminNotifier;
 import 'live.dart';
 import 'theme.dart';
@@ -695,9 +696,19 @@ class PostCard extends StatelessWidget {
               initialData: _Profiles.cached(p.uid),
               builder: (context, s) {
                 final pr = s.data;
-                void open() { if (p.uid.isNotEmpty) Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileRoute(uid: p.uid))); }
+                void goProfile() { if (p.uid.isNotEmpty) Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileRoute(uid: p.uid))); }
+                final nm = p.authorName.isNotEmpty ? p.authorName : (pr?.name ?? 'Kullanıcı');
+                final canMng = !mine && p.uid.isNotEmpty && canManageUser(p.uid, targetAdmin: pr?.isAdmin == true, targetMod: isMod);
+                // Yönetici / moderatör başkasına dokununca doğrudan profile gitmez, yönetim menüsü açılır
+                void open() {
+                  if (canMng) {
+                    showUserAdminMenu(context, uid: p.uid, name: nm, targetAdmin: pr?.isAdmin == true, onProfile: goProfile);
+                  } else {
+                    goProfile();
+                  }
+                }
                 return Row(children: [
-                  GestureDetector(onTap: open, child: Avatar(profile: pr, size: 38)),
+                  GestureDetector(onTap: goProfile, child: Avatar(profile: pr, size: 38)),
                   const SizedBox(width: 8),
                   Expanded(
                     child: GestureDetector(
@@ -720,6 +731,22 @@ class PostCard extends StatelessWidget {
                         child: Text(following ? 'Takipte' : 'Takip Et', style: jakarta(11.5, FontWeight.w800, following ? c.mu : c.on)),
                       ),
                     ),
+                  if (canMng) ...[
+                    const SizedBox(width: 6),
+                    GestureDetector(
+                      onTap: () => toggleBanUser(context, p.uid, nm),
+                      child: Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFFF04438), Color(0xFFD92D20)]),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: const [BoxShadow(color: Color(0x61D92D20), blurRadius: 8, offset: Offset(0, 3))],
+                        ),
+                        child: const Icon(Icons.block, size: 18, color: Colors.white),
+                      ),
+                    ),
+                  ],
                   if (canDelete) ...[
                     const SizedBox(width: 6),
                     GestureDetector(

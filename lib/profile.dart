@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'admin.dart' show canManageUser, showUserAdminMenu, toggleBanUser, banActive;
 import 'auth_service.dart';
 import 'feed.dart';
 import 'scoring.dart';
@@ -62,6 +63,8 @@ class _ProfileViewState extends State<ProfileView> {
   String _tab = 'k';
   bool _loaded = false;
   bool _fbusy = false;
+  bool _isMod = false;
+  Map<String, dynamic>? _ban;
   final _gone = <String>{}; // silinmiş hesaplar (takip listesinde kalmış)
   final _checked = <String>{};
   bool? _fol; // takip butonu anında değişsin (sunucu cevabını beklemeden)
@@ -79,6 +82,12 @@ class _ProfileViewState extends State<ProfileView> {
       });
       _verifyFollowing();
     }));
+    _subs.add(_db.collection('mods').doc(uid).snapshots().listen((s) {
+      if (mounted) setState(() => _isMod = s.exists);
+    }, onError: (_) {}));
+    _subs.add(_db.collection('bans').doc(uid).snapshots().listen((s) {
+      if (mounted) setState(() => _ban = s.data());
+    }, onError: (_) {}));
     _subs.add(_db.collection('grants').doc(uid).snapshots().listen((s) {
       setState(() => _grant = s.data() ?? {});
     }, onError: (_) {}));
@@ -366,6 +375,9 @@ Widget build(BuildContext context) {
   final score = scoreOf(widget.uid, _posts, _u!['hist'] as Map?, ((_grant['pts'] as num?)?.toDouble() ?? 0) + ((_grant['keep'] as num?)?.toDouble() ?? 0));
   final fl = _validFollowers;
   final isAdmin = _u!['isAdmin'] == true;
+  final canManage = !mine && canManageUser(widget.uid, targetAdmin: isAdmin, targetMod: _isMod);
+  final banned = banActive(_ban);
+  void openMenu() => showUserAdminMenu(context, uid: widget.uid, name: p.name, targetAdmin: isAdmin);
 
   return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
     stream: _meStream,
@@ -376,7 +388,7 @@ Widget build(BuildContext context) {
         padding: EdgeInsets.zero,
         children: [
           SizedBox(
-            height: 205,
+            height: 200,
             child: Stack(children: [
           Positioned(top: 0, left: 0, right: 0, child: Container(
             height: 130,
@@ -411,6 +423,24 @@ Widget build(BuildContext context) {
               ],
             ),
           )),
+          if (canManage)
+            Positioned(
+              top: 10,
+              right: 22,
+              child: GestureDetector(
+                onTap: () => toggleBanUser(context, widget.uid, p.name),
+                child: Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: banned ? const Color(0xFFEF4444) : c.sf.withAlpha(200),
+                    border: Border.all(color: const Color(0xFFEF4444).withAlpha(banned ? 255 : 100)),
+                  ),
+                  child: Icon(Icons.block, size: 17, color: banned ? Colors.white : const Color(0xFFEF4444)),
+                ),
+              ),
+            ),
           Positioned(top: 85, left: 0, right: 0, child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Row(
@@ -419,35 +449,22 @@ Widget build(BuildContext context) {
                   Container(
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: c.bg, width: 5),
-                      boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: const Offset(0, 4))],
+                      border: p.frame.isNotEmpty ? null : Border.all(color: c.bg, width: 5),
+                      boxShadow: p.frame.isNotEmpty ? null : [BoxShadow(color: Colors.black12, blurRadius: 10, offset: const Offset(0, 4))],
                     ),
                     child: Avatar(profile: p, size: 90),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.only(top: 58),
+                      padding: const EdgeInsets.only(top: 48),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              Expanded(child: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(22, FontWeight.w800, c.tx))),
-                              if (isAdmin)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(color: const Color(0xFF8B3FD9), borderRadius: BorderRadius.circular(10)),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.lock, size: 10, color: Colors.white),
-                                      const SizedBox(width: 4),
-                                      Text('Yönetici', style: jakarta(10, FontWeight.w800, Colors.white)),
-                                    ],
-                                  ),
-                                ),
-                            ],
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: canManage ? openMenu : null,
+                            child: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(22, FontWeight.w800, c.tx)),
                           ),
                           const SizedBox(height: 4),
                           Container(
@@ -466,10 +483,28 @@ Widget build(BuildContext context) {
             ]),
           ),
           Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (isAdmin || _isMod)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFFDB2777)]),
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: const [BoxShadow(color: Color(0x55A855F7), blurRadius: 8, offset: Offset(0, 3))],
+                          ),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(isAdmin ? Icons.lock_outline : Icons.block, size: 14, color: Colors.white),
+                            const SizedBox(width: 5),
+                            Text(isAdmin ? 'Yönetici' : 'Moderatör', style: jakarta(12.5, FontWeight.w800, Colors.white)),
+                          ]),
+                        ),
+                      ),
                     if (p.bio.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 12),
@@ -525,7 +560,7 @@ Widget build(BuildContext context) {
                               child: Text(isFol ? 'Takip Ediliyor' : 'Takip Et', style: jakarta(14, FontWeight.w800, isFol ? c.mu : c.on)),
                             ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 22),
                     Row(
                       children: [
                         _stat(c, fmtPts(score.pts), 'Puan', null),
@@ -537,7 +572,7 @@ Widget build(BuildContext context) {
                         _stat(c, '${following.length}', 'Takip', () => _people(1)),
                       ],
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 22),
                     Container(
                       padding: const EdgeInsets.all(5),
                       decoration: BoxDecoration(color: c.sf, borderRadius: BorderRadius.circular(16), border: Border.all(color: c.ln)),
