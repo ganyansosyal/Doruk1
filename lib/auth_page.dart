@@ -1,3 +1,4 @@
+import 'admin.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -30,7 +31,7 @@ class AuthGate extends StatelessWidget {
           if (snap.connectionState == ConnectionState.waiting) return const _Loading();
           final user = snap.data;
           if (user == null || busy) return const AuthPage();
-          return _ProfileGate(key: ValueKey(user.uid), user: user);
+          return AccessGate(key: ValueKey(user.uid), uid: user.uid, child: _ProfileGate(key: ValueKey(user.uid), user: user));
         },
       ),
     );

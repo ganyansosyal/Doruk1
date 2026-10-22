@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'admin.dart';
 import 'auth_service.dart';
 import 'feed.dart';
 import 'leaders.dart';
@@ -147,6 +148,7 @@ class _ShellState extends State<Shell> {
                   onClear: _clearSearch,
                   onBell: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsPage())),
                 ),
+                if (_tab == 0) const AnnounceTicker(),
                 Expanded(
                   child: Padding(
                     padding: EdgeInsets.only(bottom: 70 + bottom),
@@ -515,8 +517,9 @@ class AppDrawer extends StatelessWidget {
                     if (isAdminNotifier.value) ...[
                       Divider(height: 1, color: c.ln),
                       _DrawerRow(icon: Icons.lock_outline, label: 'Yönetim paneli', onTap: () {
-                        Navigator.of(context).pop();
-                        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminPage()));
+                        final nav = Navigator.of(context);
+                        nav.pop();
+                        showAdminPanel(nav.context);
                       }),
                     ],
                   ],

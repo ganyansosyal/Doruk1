@@ -1,3 +1,4 @@
+import 'admin.dart' show Presence;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ui' as ui;
@@ -452,6 +453,9 @@ class AuthService {
   }
 
   static Future<void> signOut() async {
+    try {
+      await Presence.logout();
+    } catch (_) {}
     profileNotifier.value = null;
     await _auth.signOut();
   }
