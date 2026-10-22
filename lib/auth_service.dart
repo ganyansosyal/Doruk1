@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' as ui;
+import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -58,44 +61,119 @@ ImageProvider? _imageOf(String s) {
   ImageProvider? r;
   try {
     if (s.startsWith('http')) {
-      r = NetworkImage(s);
+      r = CachedNetworkImageProvider(s);
     } else {
       final i = s.indexOf('base64,');
       if (i >= 0) r = MemoryImage(base64Decode(s.substring(i + 7)));
     }
   } catch (_) {}
-  if (_imgCache.length > 150) _imgCache.clear();
+  if (_imgCache.length > 600) _imgCache.remove(_imgCache.keys.first);
   _imgCache[s] = r;
   return r;
 }
 
 final ValueNotifier<Profile?> profileNotifier = ValueNotifier<Profile?>(null);
 
-class Avatar extends StatelessWidget {
+// Çözülmüş (decode edilmiş) avatarlar kalıcı tutulur: Flutter'ın resim önbelleği bellek baskısında
+// (uygulama arka plana gidip gelince) boşalsa bile avatar ilk karede hazır çizilir, yeniden yüklenip kaybolmaz.
+final Map<String, Map<int, ui.Image>> _decoded = {};
+final Map<String, Map<int, Future<ui.Image?>>> _decoding = {};
+
+ui.Image? _decodedOf(String photo, int px) => _decoded[photo]?[px];
+
+Future<ui.Image?> _decodeAvatar(String photo, int px) {
+  final hit = _decodedOf(photo, px);
+  if (hit != null) return Future.value(hit);
+  final raw = _imageOf(photo);
+  if (raw == null) return Future.value(null);
+  return (_decoding[photo] ??= {}).putIfAbsent(px, () {
+    final c = Completer<ui.Image?>();
+    final stream = ResizeImage.resizeIfNeeded(px, null, raw).resolve(ImageConfiguration.empty);
+    late ImageStreamListener l;
+    l = ImageStreamListener((info, _) {
+      final im = info.image.clone();
+      final m = (_decoded[photo] ??= {});
+      if (_decoded.length > 400) _decoded.remove(_decoded.keys.first);
+      m[px] = im;
+      stream.removeListener(l);
+      if (!c.isCompleted) c.complete(im);
+    }, onError: (_, __) {
+      stream.removeListener(l);
+      if (!c.isCompleted) c.complete(null);
+    });
+    stream.addListener(l);
+    return c.future.whenComplete(() => _decoding[photo]?.remove(px));
+  });
+}
+
+/// Avatarları önceden çöz (splash sırasında): akış açılınca fotoğraflar hazır olsun.
+Future<void> warmAvatars(Iterable<String> photos, List<int> sizes) async {
+  final dpr = ui.PlatformDispatcher.instance.views.isEmpty ? 2.0 : ui.PlatformDispatcher.instance.views.first.devicePixelRatio;
+  for (final ph in photos) {
+    if (ph.isEmpty) continue;
+    for (final sz in sizes) {
+      try { await _decodeAvatar(ph, (sz * dpr).round()); } catch (_) {}
+    }
+  }
+}
+
+class Avatar extends StatefulWidget {
   final Profile? profile;
   final double size;
   const Avatar({super.key, required this.profile, this.size = 40});
 
   @override
+  State<Avatar> createState() => _AvatarState();
+}
+
+class _AvatarState extends State<Avatar> {
+  ui.Image? _img;
+  String _photo = '';
+  int _px = 0;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(Avatar o) {
+    super.didUpdateWidget(o);
+    _sync();
+  }
+
+  void _sync() {
+    final photo = widget.profile?.photo ?? '';
+    final px = (widget.size * MediaQuery.devicePixelRatioOf(context)).round();
+    if (photo == _photo && px == _px && (_img != null || photo.isEmpty)) return;
+    final changedPhoto = photo != _photo;
+    _photo = photo;
+    _px = px;
+    final hit = photo.isEmpty ? null : _decodedOf(photo, px);
+    if (hit != null) { _img = hit; return; }
+    if (changedPhoto) _img = null;
+    if (photo.isEmpty) return;
+    _decodeAvatar(photo, px).then((im) {
+      if (mounted && im != null && photo == _photo && px == _px) setState(() => _img = im);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final raw = profile?.image;
-    // Fotoğraf tam boyutta çözülmesin: küçük avatar için küçültülmüş kopya (kaydırma kasmasının ana sebebi)
-    final px = (size * MediaQuery.devicePixelRatioOf(context)).round();
-    final ImageProvider? img = raw == null ? null : ResizeImage.resizeIfNeeded(px, null, raw);
-    final name = (profile?.name ?? '').trim();
+    final size = widget.size;
+    final name = (widget.profile?.name ?? '').trim();
     final letter = name.isEmpty ? '?' : name.substring(0, 1).toUpperCase();
+    final img = _img;
     return Container(
       width: size,
       height: size,
       alignment: Alignment.center,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: const Color(0xFFFFD66B),
-        image: img == null ? null : DecorationImage(image: img, fit: BoxFit.cover),
-      ),
+      decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFFFD66B)),
+      clipBehavior: Clip.antiAlias,
       child: img == null
           ? Text(letter, style: jakarta(size * 0.42, FontWeight.w800, const Color(0xFF7A4B00)))
-          : null,
+          : RawImage(image: img, width: size, height: size, fit: BoxFit.cover, filterQuality: FilterQuality.medium),
     );
   }
 }

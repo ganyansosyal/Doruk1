@@ -614,13 +614,30 @@ class _NextRaceBarState extends State<_NextRaceBar> {
   @override
   Widget build(BuildContext context) {
     final n = _next();
-    if (n == null) return const SizedBox.shrink();
     final c = AppColors.of(context);
+    // Yer her zaman ayrılır: veri sonradan gelince sayfa aşağı kaymasın
+    if (n == null) {
+      final wait = s.loading || s.cities.isEmpty;
+      return Container(
+        height: 46,
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(color: c.ac.withAlpha(14), borderRadius: BorderRadius.circular(16), border: Border.all(color: c.ac.withAlpha(90))),
+        child: Row(children: [
+          Text('SIRADAKİ KOŞU', style: jakarta(9.5, FontWeight.w800, c.ac).copyWith(letterSpacing: 1.1)),
+          const SizedBox(width: 8),
+          Expanded(child: wait
+              ? Container(height: 12, decoration: BoxDecoration(color: c.ln, borderRadius: BorderRadius.circular(6)))
+              : Text(s.isToday ? 'Bugün başka koşu yok' : '—', maxLines: 1, style: jakarta(13, FontWeight.w700, c.mu))),
+        ]),
+      );
+    }
     final left = n.d.difference(DateTime.now()).inSeconds.clamp(0, 999999);
     return GestureDetector(
       onTap: () => widget.onOpen?.call(n.city, n.r.no),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        height: 46,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(color: c.ac.withAlpha(14), borderRadius: BorderRadius.circular(16), border: Border.all(color: c.ac.withAlpha(90))),
         child: Row(children: [
           Text('SIRADAKİ KOŞU', style: jakarta(9.5, FontWeight.w800, c.ac).copyWith(letterSpacing: 1.1)),

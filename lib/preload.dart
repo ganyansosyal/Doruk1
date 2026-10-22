@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import 'auth_service.dart';
 import 'firebase_options.dart';
+import 'tjk.dart';
 
 /// Açılış ekranı (splash) sürerken akışın verilerini (paylaşımlar, kullanıcılar, puanlar, moderatörler, ben)
 /// birlikte önceden alır. Splash bitince akış hazır açılır: tahminciler satırı, sıralama ve rozetler oynamaz.
@@ -16,7 +18,10 @@ class Preload {
   static Set<String> mods = {};
   static Map<String, dynamic>? me;
 
-  static Future<void> start() => _f ??= _run();
+  static Future<void> start() {
+    TjkStore.i.ensureLoaded(); // koşu programı da splash sırasında gelsin
+    return _f ??= _run();
+  }
 
   static Future<void> _run() async {
     try {
@@ -37,6 +42,9 @@ class Preload {
       mods = (await fm).docs.map((d) => d.id).toSet();
       me = (await fme).data();
       uid = u.uid;
+      // Avatar fotoğraflarını splash sırasında çöz: akış açılınca tahminciler satırı boş/harf görünmesin
+      final photos = <String>[for (final d in users) (d.data()['photo'] ?? '').toString()].where((x) => x.isNotEmpty).take(60);
+      await warmAvatars(photos, const [48, 36]).timeout(const Duration(seconds: 3), onTimeout: () {});
       done = true;
     } catch (_) {
       // alınamadıysa akış kendi yükleme yoluna döner

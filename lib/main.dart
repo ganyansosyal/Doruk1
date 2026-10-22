@@ -23,6 +23,9 @@ const _barStyle = SystemUiOverlayStyle(
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await preloadFonts();
+  PaintingBinding.instance.imageCache
+    ..maximumSize = 1000
+    ..maximumSizeBytes = 200 << 20; // avatarlar bellekten düşmesin
   SystemChrome.setSystemUIOverlayStyle(_barStyle);
   // Telefon 90/120 Hz destekliyorsa uygulamayı da en yüksek yenileme hızında çalıştır (tarayıcı gibi akıcı olsun)
   if (Platform.isAndroid) {
