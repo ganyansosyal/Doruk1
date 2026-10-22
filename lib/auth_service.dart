@@ -445,6 +445,12 @@ class AuthService {
     throw const AuthException('Kullanıcı adı oluşturulamadı.');
   }
 
+  /// Profil fotoğrafını kaydeder (fotoğraf kapısı için).
+  static Future<void> savePhoto(String uid, String photo) async {
+    await _db.collection('users').doc(uid).update({'photo': photo});
+    profileNotifier.value = await loadProfile(uid);
+  }
+
   static Future<void> signOut() async {
     profileNotifier.value = null;
     await _auth.signOut();

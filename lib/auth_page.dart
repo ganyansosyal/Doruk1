@@ -54,7 +54,17 @@ class _ProfileGateState extends State<_ProfileGate> {
     return FutureBuilder<Profile>(
       future: _f,
       builder: (_, s) {
-        if (s.hasData) return const Shell();
+        if (s.hasData) {
+          // Profil fotoğrafı olmayan herkes (e-posta / Google, yeni / eski hesap) fotoğraf ekleyene kadar uygulamaya geçemez
+          return ValueListenableBuilder<Profile?>(
+            valueListenable: profileNotifier,
+            builder: (_, pn, __) {
+              final p = (pn != null && pn.uid == widget.user.uid) ? pn : s.data!;
+              if (p.photo.isEmpty) return _PhotoGate(profile: p);
+              return const Shell();
+            },
+          );
+        }
         if (s.hasError) {
           return _Message(
             title: 'Profil yüklenemedi',
@@ -73,6 +83,155 @@ class _ProfileGateState extends State<_ProfileGate> {
         }
         return const _Loading();
       },
+    );
+  }
+}
+
+/* ---------------- Profil fotoğrafı zorunlu ---------------- */
+
+class _PhotoGate extends StatefulWidget {
+  final Profile profile;
+  const _PhotoGate({required this.profile});
+
+  @override
+  State<_PhotoGate> createState() => _PhotoGateState();
+}
+
+class _PhotoGateState extends State<_PhotoGate> {
+  String _photo = '';
+  Uint8List? _bytes;
+  bool _busy = false, _bad = false;
+  String? _err;
+
+  Future<void> _pick() async {
+    try {
+      final x = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 400,
+        maxHeight: 400,
+        imageQuality: 75,
+      );
+      if (x == null) return;
+      final bytes = await x.readAsBytes();
+      if (!mounted) return;
+      setState(() {
+        _bytes = bytes;
+        _photo = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+        _bad = false;
+        _err = null;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _err = 'Fotoğraf yüklenemedi, başka bir tane dene.');
+    }
+  }
+
+  Future<void> _save() async {
+    if (_photo.isEmpty) {
+      setState(() {
+        _bad = true;
+        _err = 'Profil fotoğrafı eklemeden devam edemezsin.';
+      });
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _err = null;
+    });
+    try {
+      await AuthService.savePhoto(widget.profile.uid, _photo);
+    } catch (e) {
+      if (mounted) setState(() => _err = AuthService.errorText(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppColors.of(context);
+    final has = _bytes != null;
+    return Scaffold(
+      backgroundColor: c.bg,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 360),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('Profil fotoğrafı ekle', textAlign: TextAlign.center, style: jakarta(22, FontWeight.w800, c.tx)),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Merhaba ${widget.profile.name}! Devam etmek için profil fotoğrafı eklemelisin.',
+                    textAlign: TextAlign.center,
+                    style: jakarta(14, FontWeight.w500, c.mu).copyWith(height: 1.45),
+                  ),
+                  const SizedBox(height: 18),
+                  Center(
+                    child: GestureDetector(
+                      onTap: _busy ? null : _pick,
+                      child: Container(
+                        width: 150,
+                        height: 150,
+                        clipBehavior: Clip.antiAlias,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: c.sf,
+                          border: Border.all(color: _bad ? c.red : (has ? c.ac : c.ln), width: 3),
+                        ),
+                        child: has
+                            ? Image.memory(_bytes!, fit: BoxFit.cover)
+                            : Icon(Icons.camera_alt_outlined, size: 54, color: c.mu),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    height: 20,
+                    child: Text(_err ?? '', textAlign: TextAlign.center, style: jakarta(13, FontWeight.w700, c.red)),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 48,
+                    child: OutlinedButton(
+                      onPressed: _busy ? null : _pick,
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: c.ln, width: 1.4),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: Text(has ? 'Başka fotoğraf seç' : 'Fotoğraf seç', style: jakarta(14.5, FontWeight.w800, c.tx)),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 48,
+                    child: FilledButton(
+                      onPressed: _busy ? null : _save,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: c.ac,
+                        foregroundColor: c.on,
+                        disabledBackgroundColor: c.ac.withAlpha(150),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: _busy
+                          ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.4, color: c.on))
+                          : Text('Kaydet ve devam et', style: jakarta(14.5, FontWeight.w800, c.on)),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextButton(
+                    onPressed: _busy ? null : AuthService.signOut,
+                    child: Text('Çıkış yap', style: jakarta(13, FontWeight.w700, c.mu)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
