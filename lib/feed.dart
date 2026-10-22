@@ -964,18 +964,10 @@ class _CommentsSheetState extends State<_CommentsSheet> {
   @override
   Widget build(BuildContext context) {
     final c = AppColors.of(context);
-    final mqx = MediaQuery.of(context);
-    final kb = mqx.viewInsets.bottom;
-    final bottom = kb > 0 ? kb : mqx.viewPadding.bottom;
-    // Klavye kapalıyken ekranın ~%70'i; klavye açılınca klavyenin hemen üstüne sığar (üstte boşluk kalmaz)
-    final avail = mqx.size.height - kb - mqx.viewPadding.top - 8;
-    final h = kb > 0 ? avail : (mqx.size.height * 0.7 < avail ? mqx.size.height * 0.7 : avail);
     final hasText = _ctl.text.trim().isNotEmpty;
-    return Padding(
-      padding: EdgeInsets.only(bottom: bottom),
-      child: SizedBox(
-        height: h - (kb > 0 ? 0 : mqx.viewPadding.bottom),
-        child: Column(children: [
+    return KbSheet(
+      fraction: 0.7,
+      child: Column(children: [
           const SizedBox(height: 8),
           Container(width: 40, height: 4, decoration: BoxDecoration(color: c.ln, borderRadius: BorderRadius.circular(2))),
           Padding(
@@ -1079,8 +1071,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
               ]),
             ]),
           ),
-        ]),
-      ),
+      ]),
     );
   }
 }

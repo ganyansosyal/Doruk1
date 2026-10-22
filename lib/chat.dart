@@ -218,18 +218,9 @@ class _ChatSheetState extends State<_ChatSheet> {
   @override
   Widget build(BuildContext context) {
     final c = AppColors.of(context);
-    final mqx = MediaQuery.of(context);
-    final kbOpen = mqx.viewInsets.bottom > 0;
-    // Klavye kapalıyken telefonun alt çubuğu kadar boşluk bırak (yazı alanı altında kalmasın)
-    final kb = kbOpen ? mqx.viewInsets.bottom : mqx.viewPadding.bottom;
-    // Dinamik yükseklik: klavye kapalıyken ekranın ~%62'si, açılınca kalan alanı doldurur
-    final screenH = mqx.size.height - mqx.viewPadding.top;
-    final h = (screenH * 0.62).clamp(0.0, screenH - kb);
-    return Padding(
-      padding: EdgeInsets.only(bottom: kb),
-      child: SizedBox(
-        height: h,
-        child: Column(children: [
+    return KbSheet(
+      fraction: 0.62,
+      child: Column(children: [
         const SizedBox(height: 12),
         Row(children: [
           const SizedBox(width: 16),
@@ -277,7 +268,6 @@ class _ChatSheetState extends State<_ChatSheet> {
           },
         ),
       ]),
-      ),
     );
   }
 }

@@ -133,3 +133,25 @@ class Brand extends StatelessWidget {
     );
   }
 }
+
+
+/// Klavyeye uyumlu alt pencere: yükseklik klavye açılırken kesintisiz (zıplamadan) küçülür.
+/// Sadece bu widget MediaQuery'yi dinler; içindeki içerik her karede yeniden çizilmez.
+class KbSheet extends StatelessWidget {
+  final double fraction;
+  final Widget child;
+  const KbSheet({super.key, required this.child, this.fraction = 0.7});
+  @override
+  Widget build(BuildContext context) {
+    final m = MediaQuery.of(context);
+    final kb = m.viewInsets.bottom;
+    final safe = m.viewPadding.bottom;
+    final bottom = kb > safe ? kb : safe;
+    final avail = m.size.height - bottom - 8;
+    final want = m.size.height * fraction;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottom),
+      child: SizedBox(height: want < avail ? want : avail, child: child),
+    );
+  }
+}

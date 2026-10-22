@@ -60,6 +60,7 @@ class _ProfileViewState extends State<ProfileView> {
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _followers = [];
   String _tab = 'k';
   bool _loaded = false;
+  bool _fbusy = false;
   bool? _fol; // takip butonu anında değişsin (sunucu cevabını beklemeden)
   late final Stream<DocumentSnapshot<Map<String, dynamic>>> _meStream = _db.collection('users').doc(_me).snapshots();
 
@@ -125,10 +126,10 @@ class _ProfileViewState extends State<ProfileView> {
     useSafeArea: true, // <-- STATUS BAR SORUNUNU ÇÖZEN SATIR
     backgroundColor: c.bg,
     shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-    builder: (ctx) => StatefulBuilder(
+    builder: (ctx) => _KbPad(child: StatefulBuilder(
       builder: (ctx, setS) {
         return Padding(
-          padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + (MediaQuery.of(ctx).viewInsets.bottom > 0 ? MediaQuery.of(ctx).viewInsets.bottom : MediaQuery.of(ctx).viewPadding.bottom + 8)),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -289,42 +290,28 @@ class _ProfileViewState extends State<ProfileView> {
           ),
         );
       },
-    ),
+    )),
   );
   }
-  void _people(String title, List<String> uids) {
+  void _people(int tab) {
   final c = AppColors.of(context);
+  final fol = _validFollowers.map((e) => e.id).toList();
+  final ing = ((_u?['following'] as List?) ?? const []).map((e) => e.toString()).toList();
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
     backgroundColor: c.bg,
-    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-    builder: (ctx) => SizedBox(
-      height: MediaQuery.of(ctx).size.height * 0.65,
-      child: Column(
-        children: [
-          const SizedBox(height: 12),
-          Text(title, style: jakarta(15, FontWeight.w800, c.tx)),
-          const SizedBox(height: 4),
-          Expanded(
-            child: uids.isEmpty
-                ? Center(child: Text('Kimse yok.', style: jakarta(13, FontWeight.w600, c.mu)))
-                : ListView(
-                    children: [
-                      for (final u in uids)
-                        PersonTile(
-                          uid: u,
-                          onOpen: () {
-                            Navigator.pop(ctx);
-                            Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileRoute(uid: u)));
-                          },
-                        ),
-                    ],
-                  ),
-          ),
-        ],
-      ),
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+    builder: (ctx) => _PeopleSheet(
+      name: Profile.fromMap(widget.uid, _u ?? {}).name,
+      followers: fol,
+      following: ing,
+      tab: tab,
+      onOpen: (u) {
+        Navigator.pop(ctx);
+        Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileRoute(uid: u)));
+      },
     ),
   );
 }
@@ -352,8 +339,10 @@ Widget build(BuildContext context) {
       return ListView(
         padding: EdgeInsets.zero,
         children: [
-          // BANNER
-          Container(
+          SizedBox(
+            height: 205,
+            child: Stack(children: [
+          Positioned(top: 0, left: 0, right: 0, child: Container(
             height: 130,
             width: double.infinity,
             margin: const EdgeInsets.symmetric(horizontal: 12),
@@ -385,14 +374,11 @@ Widget build(BuildContext context) {
                 ),
               ],
             ),
-          ),
-          // AVATAR VE İSİM
-          Transform.translate(
-            offset: const Offset(0, -45),
-            child: Padding(
+          )),
+          Positioned(top: 85, left: 0, right: 0, child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
                     decoration: BoxDecoration(
@@ -405,7 +391,7 @@ Widget build(BuildContext context) {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.only(bottom: 10.0),
+                      padding: const EdgeInsets.only(top: 58),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -441,11 +427,10 @@ Widget build(BuildContext context) {
               ),
             ),
           ),
-                      // BİYOGRAFİ VE ALT KISIM
-            Transform.translate(
-              offset: const Offset(0, -30),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+            ]),
+          ),
+          Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -470,8 +455,8 @@ Widget build(BuildContext context) {
                               onPressed: _edit,
                               style: OutlinedButton.styleFrom(
                                 backgroundColor: c.sf,
-                                side: BorderSide(color: c.ac, width: 1.6),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                side: BorderSide(color: c.ln),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                               ),
                               child: Row(mainAxisSize: MainAxisSize.min, children: [
                                 Icon(Icons.edit_outlined, size: 17, color: c.ac),
@@ -480,23 +465,28 @@ Widget build(BuildContext context) {
                               ]),
                             )
                           : FilledButton(
-                              onPressed: () {
+                              onPressed: () async {
+                                if (_fbusy) return;
+                                _fbusy = true;
                                 final was = isFol;
                                 setState(() => _fol = !was);
-                                toggleFollow(widget.uid, was).then((_) {
+                                try {
+                                  await toggleFollow(widget.uid, was);
+                                } catch (e) {
+                                  if (mounted) {
+                                    final code = e is FirebaseException ? e.code : e.runtimeType.toString();
+                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${AuthService.errorText(e)} ($code)')));
+                                  }
+                                } finally {
+                                  _fbusy = false;
                                   if (mounted) setState(() => _fol = null);
-                                }).catchError((e) {
-                                  if (!mounted) return;
-                                  setState(() => _fol = null);
-                                  final code = e is FirebaseException ? e.code : e.runtimeType.toString();
-                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${AuthService.errorText(e)} ($code)')));
-                                });
+                                }
                               },
                               style: FilledButton.styleFrom(
                                 backgroundColor: isFol ? c.sf2 : c.ac,
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                               ),
-                              child: Text(isFol ? 'Takipte' : 'Takip Et', style: jakarta(14, FontWeight.w800, isFol ? c.mu : c.on)),
+                              child: Text(isFol ? 'Takip Ediliyor' : 'Takip Et', style: jakarta(14, FontWeight.w800, isFol ? c.mu : c.on)),
                             ),
                     ),
                     const SizedBox(height: 16),
@@ -506,9 +496,9 @@ Widget build(BuildContext context) {
                         const SizedBox(width: 8),
                         _stat(c, '${coupons.length}', 'Kupon', null),
                         const SizedBox(width: 8),
-                        _stat(c, '${fl.length}', 'Takipçi', () => _people('Takipçiler', fl.map((e) => e.id).toList())),
+                        _stat(c, '${fl.length}', 'Takipçi', () => _people(0)),
                         const SizedBox(width: 8),
-                        _stat(c, '${following.length}', 'Takip', () => _people('Takip edilenler', following)),
+                        _stat(c, '${following.length}', 'Takip', () => _people(1)),
                       ],
                     ),
                     const SizedBox(height: 16),
@@ -539,7 +529,6 @@ Widget build(BuildContext context) {
                   ],
                 ),
               ),
-            ),
           ],
         );
       },
@@ -601,6 +590,221 @@ class PersonTile extends StatelessWidget {
           subtitle: Text('@${p.handle}', style: jakarta(12, FontWeight.w600, c.mu)),
         );
       },
+    );
+  }
+}
+
+
+/// Instagram tarzı Takipçi / Takip listesi: sekmeler, arama, her satırda Takip Et / Takiptesin
+class _PeopleSheet extends StatefulWidget {
+  final String name;
+  final List<String> followers, following;
+  final int tab;
+  final void Function(String uid) onOpen;
+  const _PeopleSheet({required this.name, required this.followers, required this.following, required this.tab, required this.onOpen});
+  @override
+  State<_PeopleSheet> createState() => _PeopleSheetState();
+}
+
+class _PeopleSheetState extends State<_PeopleSheet> {
+  late int _t = widget.tab;
+  final _q = TextEditingController();
+  final _prof = <String, Profile>{};
+  final _opt = <String, bool>{};
+  final _busy = <String>{};
+  bool _ready = false;
+  late final Stream<DocumentSnapshot<Map<String, dynamic>>> _ms = _db.collection('users').doc(_me).snapshots();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAll();
+  }
+
+  @override
+  void dispose() {
+    _q.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadAll() async {
+    final all = {...widget.followers, ...widget.following};
+    await Future.wait(all.map((u) async {
+      try {
+        final p = await AuthService.loadProfile(u);
+        if (p != null) _prof[u] = p;
+      } catch (_) {}
+    }));
+    if (mounted) setState(() => _ready = true);
+  }
+
+  Future<void> _fol(String u, bool was) async {
+    if (_busy.contains(u)) return;
+    _busy.add(u);
+    setState(() => _opt[u] = !was);
+    try {
+      await toggleFollow(u, was);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AuthService.errorText(e))));
+    } finally {
+      _busy.remove(u);
+      if (mounted) setState(() => _opt.remove(u));
+    }
+  }
+
+  Widget _tabBtn(AppColors c, int i, String label) {
+    final on = _t == i;
+    return Expanded(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => setState(() => _t = i),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 11),
+          decoration: BoxDecoration(color: on ? c.ac : Colors.transparent, borderRadius: BorderRadius.circular(12)),
+          child: Text(label, textAlign: TextAlign.center, style: jakarta(13.5, FontWeight.w800, on ? c.on : c.mu)),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppColors.of(context);
+    final q = _q.text.trim().toLowerCase();
+    final base = _t == 0 ? widget.followers : widget.following;
+    final list = base.where((u) {
+      final p = _prof[u];
+      if (p == null) return false;
+      return q.isEmpty || p.name.toLowerCase().contains(q) || p.handle.toLowerCase().contains(q);
+    }).toList();
+    return KbSheet(
+      fraction: 0.85,
+      child: Column(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
+            child: Row(children: [
+              Expanded(child: Text(widget.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(20, FontWeight.w800, c.tx))),
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(color: c.sf2, shape: BoxShape.circle),
+                  child: Icon(Icons.close, color: c.tx, size: 20),
+                ),
+              ),
+            ]),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(color: c.sf, borderRadius: BorderRadius.circular(16), border: Border.all(color: c.ln)),
+              child: Row(children: [
+                _tabBtn(c, 0, '${widget.followers.length} Takipçi'),
+                _tabBtn(c, 1, '${widget.following.length} Takip'),
+              ]),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+            child: TextField(
+              controller: _q,
+              onChanged: (_) => setState(() {}),
+              style: jakarta(14, FontWeight.w600, c.tx),
+              decoration: InputDecoration(
+                hintText: 'Ara',
+                hintStyle: jakarta(14, FontWeight.w600, c.mu),
+                prefixIcon: Icon(Icons.search, color: c.mu, size: 20),
+                filled: true,
+                fillColor: c.sf,
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: c.ln)),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: c.ln)),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: c.ac)),
+              ),
+            ),
+          ),
+          Expanded(
+            child: !_ready
+                ? Center(child: CircularProgressIndicator(color: c.ac))
+                : list.isEmpty
+                    ? Align(
+                        alignment: Alignment.topCenter,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 40),
+                          child: Text(q.isNotEmpty ? 'Sonuç yok.' : (_t == 0 ? 'Henüz takipçi yok.' : 'Henüz kimse takip edilmiyor.'), style: jakarta(13.5, FontWeight.w600, c.mu)),
+                        ),
+                      )
+                    : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                        stream: _ms,
+                        builder: (context, ms) {
+                          final mf = ((ms.data?.data()?['following'] as List?) ?? const []).map((e) => e.toString()).toSet();
+                          return ListView.builder(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            itemCount: list.length,
+                            itemBuilder: (_, i) {
+                              final u = list[i];
+                              final p = _prof[u]!;
+                              final isMe = u == _me;
+                              final isFol = _opt[u] ?? mf.contains(u);
+                              return InkWell(
+                                onTap: () => widget.onOpen(u),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  child: Row(children: [
+                                    Avatar(profile: p, size: 48),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                        Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(15, FontWeight.w800, c.tx)),
+                                        Text('@${p.handle}', maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(12.5, FontWeight.w600, c.mu)),
+                                      ]),
+                                    ),
+                                    if (!isMe) ...[
+                                      const SizedBox(width: 8),
+                                      GestureDetector(
+                                        behavior: HitTestBehavior.opaque,
+                                        onTap: () => _fol(u, isFol),
+                                        child: Container(
+                                          constraints: const BoxConstraints(minWidth: 96),
+                                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                                          alignment: Alignment.center,
+                                          decoration: BoxDecoration(
+                                            color: isFol ? c.sf : c.ac,
+                                            borderRadius: BorderRadius.circular(14),
+                                            border: Border.all(color: isFol ? c.ln : c.ac, width: 1.4),
+                                          ),
+                                          child: Text(isFol ? 'Takiptesin' : 'Takip Et', style: jakarta(13.5, FontWeight.w800, isFol ? c.tx : c.on)),
+                                        ),
+                                      ),
+                                    ],
+                                  ]),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
+          ),
+      ]),
+    );
+  }
+}
+
+
+/// Klavye boşluğunu sadece kendisi dinler; içindeki ağır form yeniden çizilmez, sheet'in üst kenarı sabit kalır (zıplama olmaz)
+class _KbPad extends StatelessWidget {
+  final Widget child;
+  const _KbPad({required this.child});
+  @override
+  Widget build(BuildContext context) {
+    final m = MediaQuery.of(context);
+    final kb = m.viewInsets.bottom;
+    final safe = m.viewPadding.bottom + 8;
+    return SizedBox(
+      height: double.infinity,
+      child: Padding(padding: EdgeInsets.only(bottom: kb > safe ? kb : safe), child: child),
     );
   }
 }
