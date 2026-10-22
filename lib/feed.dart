@@ -9,6 +9,7 @@ import 'bets.dart';
 import 'scoring.dart';
 import 'profile.dart';
 import 'settle.dart' show isAdminNotifier;
+import 'live.dart';
 import 'theme.dart';
 import 'tjk.dart' show TjkStore, Race, isoToday;
 
@@ -356,7 +357,7 @@ class _FeedPageState extends State<FeedPage> {
         Expanded(
           flex: 8,
           child: GestureDetector(
-            onTap: () => launchUrl(Uri.parse('https://www.youtube.com/watch?v=I1FgwiDqpS8'), mode: LaunchMode.externalApplication),
+            onTap: () => showLive(context),
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(color: c.red.withAlpha(16), borderRadius: BorderRadius.circular(16), border: Border.all(color: c.red.withAlpha(70))),
