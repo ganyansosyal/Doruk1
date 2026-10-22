@@ -19,6 +19,7 @@ Future<void> showLive(BuildContext context) {
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
+    constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.88),
     backgroundColor: _bg,
     shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
     builder: (_) => const _LiveSheet(),
@@ -184,7 +185,12 @@ class _LiveSheetState extends State<_LiveSheet> {
               ),
             ]),
           ),
-          YoutubePlayer(
+          Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * (MediaQuery.of(context).orientation == Orientation.landscape ? 0.5 : 0.3)),
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: YoutubePlayer(
             controller: _c,
             aspectRatio: 16 / 9,
             autoFullScreen: false,
@@ -199,6 +205,9 @@ class _LiveSheetState extends State<_LiveSheet> {
               onMute: _mute,
               onFull: _full,
               onClose: () => _c.exitFullScreen(),
+            ),
+          ),
+              ),
             ),
           ),
           Padding(

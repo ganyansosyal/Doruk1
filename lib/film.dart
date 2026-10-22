@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
@@ -35,6 +37,7 @@ Future<void> showRaceFilm(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
+    constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.88),
     backgroundColor: _bg,
     shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
     builder: (_) => _FilmSheet(url: url, race: race, city: city, dateLabel: dateLabel, rows: rows, title: title, subtitle: subtitle, badge: badge, meName: meName, meSub: meSub, loader: loader),
@@ -158,21 +161,26 @@ class _FilmSheetState extends State<_FilmSheet> {
               ),
             ]),
           ),
-          AspectRatio(
-            aspectRatio: ratio,
-            child: Container(
-              color: Colors.black,
-              child: _err
-                  ? Center(child: Text('Video yüklenemedi.', style: jakarta(14, FontWeight.w600, Colors.white70)))
-                  : !_v.value.isInitialized
-                      ? const Center(child: CircularProgressIndicator(color: _ac))
-                      : GestureDetector(
-                          onTap: () => setState(() => _v.value.isPlaying ? _v.pause() : _v.play()),
-                          child: Stack(alignment: Alignment.center, children: [
-                            VideoPlayer(_v),
-                            if (!_v.value.isPlaying) const Icon(Icons.play_circle_fill, color: Colors.white70, size: 64),
-                          ]),
-                        ),
+          Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * (MediaQuery.of(context).orientation == Orientation.landscape ? 0.5 : 0.3)),
+              child: AspectRatio(
+                aspectRatio: ratio,
+                child: Container(
+                  color: Colors.black,
+                  child: _err
+                      ? Center(child: Text('Video yüklenemedi.', style: jakarta(14, FontWeight.w600, Colors.white70)))
+                      : !_v.value.isInitialized
+                          ? const Center(child: CircularProgressIndicator(color: _ac))
+                          : GestureDetector(
+                              onTap: () => setState(() => _v.value.isPlaying ? _v.pause() : _v.play()),
+                              child: Stack(alignment: Alignment.center, children: [
+                                VideoPlayer(_v),
+                                if (!_v.value.isPlaying) const Icon(Icons.play_circle_fill, color: Colors.white70, size: 56),
+                              ]),
+                            ),
+                ),
+              ),
             ),
           ),
           if (_v.value.isInitialized) VideoProgressIndicator(_v, allowScrubbing: true, colors: const VideoProgressColors(playedColor: _ac)),
@@ -308,30 +316,147 @@ class _FullVideo extends StatefulWidget {
 }
 
 class _FullVideoState extends State<_FullVideo> {
+  bool _show = true;
+  Timer? _t;
+
+  VideoPlayerController get _v => widget.controller;
+
+  void _tick() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
     SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    _v.addListener(_tick);
+    _arm();
   }
 
   @override
   void dispose() {
+    _t?.cancel();
+    _v.removeListener(_tick);
     SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
 
+  // Butonlar oynarken 3 sn sonra kendiliğinden gizlenir
+  void _arm() {
+    _t?.cancel();
+    _t = Timer(const Duration(seconds: 3), () {
+      if (mounted && _v.value.isPlaying) setState(() => _show = false);
+    });
+  }
+
+  void _toggleUi() {
+    setState(() => _show = !_show);
+    if (_show) _arm();
+  }
+
+  void _seek(int sec) {
+    final p = _v.value.position + Duration(seconds: sec);
+    final d = _v.value.duration;
+    _v.seekTo(p < Duration.zero ? Duration.zero : (p > d ? d : p));
+    _arm();
+  }
+
+  void _playPause() {
+    _v.value.isPlaying ? _v.pause() : _v.play();
+    _arm();
+  }
+
+  Widget _ib(IconData ic, VoidCallback f, {double size = 26, double pad = 10}) => GestureDetector(
+        onTap: f,
+        child: Container(
+          padding: EdgeInsets.all(pad),
+          decoration: const BoxDecoration(color: Color(0x99000000), shape: BoxShape.circle),
+          child: Icon(ic, color: Colors.white, size: size),
+        ),
+      );
+
+  Widget _chip(String t, VoidCallback f, {bool on = false}) => GestureDetector(
+        onTap: f,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(color: on ? _ac : const Color(0x99000000), borderRadius: BorderRadius.circular(12)),
+          child: Text(t, style: jakarta(13, FontWeight.w800, Colors.white)),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
-    final v = widget.controller;
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: GestureDetector(
-        onTap: () => Navigator.pop(context),
-        child: Center(
-          child: AspectRatio(aspectRatio: v.value.isInitialized ? v.value.aspectRatio : 16 / 9, child: VideoPlayer(v)),
-        ),
+    final v = _v;
+    final sp = v.value.playbackSpeed;
+    return PopScope(
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: Stack(children: [
+          // Videoya dokununca sadece butonlar açılır/kapanır, ekrandan çıkmaz
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _toggleUi,
+              child: Center(
+                child: AspectRatio(aspectRatio: v.value.isInitialized ? v.value.aspectRatio : 16 / 9, child: VideoPlayer(v)),
+              ),
+            ),
+          ),
+          if (_show) ...[
+            // Üst: kapat
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                  child: Row(children: [
+                    _ib(Icons.fullscreen_exit, () => Navigator.pop(context)),
+                    const Spacer(),
+                    _ib(Icons.close, () => Navigator.pop(context)),
+                  ]),
+                ),
+              ),
+            ),
+            // Orta: geri / oynat-duraklat / ileri
+            Center(
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                _ib(Icons.replay_10, () => _seek(-10), size: 30),
+                const SizedBox(width: 28),
+                _ib(v.value.isPlaying ? Icons.pause : Icons.play_arrow, _playPause, size: 44, pad: 14),
+                const SizedBox(width: 28),
+                _ib(Icons.forward_10, () => _seek(10), size: 30),
+              ]),
+            ),
+            // Alt: ilerleme + hız
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                      for (final s in const [0.5, 1.0, 2.0]) ...[
+                        _chip('${s == 1.0 ? '1' : s == 2.0 ? '2' : '0.5'}x', () {
+                          v.setPlaybackSpeed(s);
+                          _arm();
+                        }, on: sp == s),
+                        const SizedBox(width: 6),
+                      ],
+                    ]),
+                    const SizedBox(height: 6),
+                    VideoProgressIndicator(v, allowScrubbing: true, padding: const EdgeInsets.symmetric(vertical: 8), colors: const VideoProgressColors(playedColor: _ac)),
+                  ]),
+                ),
+              ),
+            ),
+          ],
+        ]),
       ),
     );
   }
