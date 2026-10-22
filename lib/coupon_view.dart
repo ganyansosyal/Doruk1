@@ -294,18 +294,22 @@ class CouponView extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(10, 9, 12, 9),
           child: Row(children: [
-            Flexible(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                decoration: BoxDecoration(
-                  color: c.ac,
-                  borderRadius: BorderRadius.circular(999),
-                  boxShadow: [BoxShadow(color: c.ac.withAlpha(50), blurRadius: 9, offset: const Offset(0, 3))],
+            // Sol taraf kalan tüm yeri alır: başlık gereksiz yere "..." ile kısalmaz
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: c.ac,
+                    borderRadius: BorderRadius.circular(999),
+                    boxShadow: [BoxShadow(color: c.ac.withAlpha(50), blurRadius: 9, offset: const Offset(0, 3))],
+                  ),
+                  child: Text(head, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(12.5, FontWeight.w800, c.on)),
                 ),
-                child: Text(head, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(12.5, FontWeight.w800, c.on)),
               ),
             ),
-            const Spacer(),
+            const SizedBox(width: 8),
             if (ts > 0) Text(_stamp(ts), style: jakarta(11, FontWeight.w700, c.mu)),
           ]),
         ),

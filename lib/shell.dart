@@ -116,7 +116,13 @@ class _ShellState extends State<Shell> {
                   ),
                   child: Row(
                     children: [
-                      _NavItem(icon: Icons.home_outlined, label: 'Akış', on: _tab == 0, onTap: () => setState(() => _tab = 0)),
+                      _NavItem(icon: Icons.home_outlined, label: 'Akış', on: _tab == 0, onTap: () {
+                        if (_tab == 0) {
+                          feedScrollTop.value++;
+                        } else {
+                          setState(() => _tab = 0);
+                        }
+                      }),
                       _NavItem(icon: Icons.emoji_events_outlined, label: 'Liderler', on: _tab == 1, onTap: () => setState(() => _tab = 1)),
                       _NavItem(icon: Icons.format_list_bulleted, label: 'Tahmin Yap', on: _tab == 2, onTap: () => setState(() => _tab = 2)),
                       const SizedBox(width: 48),

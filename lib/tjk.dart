@@ -1034,6 +1034,9 @@ class AtHist {
 
 final Map<String, AtHist> _histMem = {};
 final Map<String, Future<AtHist>> _histBusy = {};
+
+/// Bu atın son yarış / son galibiyet bilgisi bellekte hazır mı?
+bool atHistHazir(String atId) => _histMem.containsKey(atId);
 final Map<String, AtRow?> _galopMem = {};
 final Map<String, Future<AtRow?>> _galopBusy = {};
 

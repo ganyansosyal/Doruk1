@@ -123,6 +123,9 @@ Future<void> _editComments(String postId, List<dynamic> Function(List<dynamic>) 
 
 Future<void> toggleFollow(String t, bool f) => _toggleFollow(t, f);
 
+/// Alt menüde "Akış"a (zaten Akış'tayken) tekrar basılınca akışı en üste kaydırır
+final ValueNotifier<int> feedScrollTop = ValueNotifier<int>(0);
+
 class FeedPage extends StatefulWidget {
   final void Function(String city, int race)? onOpenRace;
   final VoidCallback? onOpenLeaders;
@@ -153,6 +156,11 @@ bool _altiliBekler(Post p) {
 bool _isWon(Post p) => postStatus(p) == 'win';
 bool _isLost(Post p) => postStatus(p) == 'lose' && !_altiliBekler(p);
 class _FeedPageState extends State<FeedPage> {
+  final _scroll = ScrollController();
+  void _toTop() {
+    if (_scroll.hasClients) _scroll.animateTo(0, duration: const Duration(milliseconds: 380), curve: Curves.easeOutCubic);
+  }
+
   String _filter = 'all';
   final _ctl = TextEditingController();
   bool _busy = false;
@@ -170,16 +178,34 @@ class _FeedPageState extends State<FeedPage> {
 
   Timer? _bumpT;
   bool _fresh = false;
+  Map<String, dynamic>? _meInit; // açılışta alınan profilim (takip listesi): rozetler sonradan değişmesin
+  bool _followKnown = false;
 
   @override
   void initState() {
     super.initState();
+    feedScrollTop.addListener(_toTop);
     TjkStore.i.ensureLoaded();
     // Eski (önbellek) paylaşımlar hiç gösterilmesin: önce sunucudan taze veriyi al, sonra akışı aç.
     // İnternet yoksa/6 sn'de gelmezse önbellekle devam eder.
-    _db.collection('posts').orderBy('ts', descending: true).limit(100).get(const GetOptions(source: Source.server)).timeout(const Duration(seconds: 6)).then((_) {}, onError: (_) {}).whenComplete(() {
+    // Tahminciler satırı, "+" rozetleri ve sıralama açılışta kademe kademe gelip zıplamasın diye
+    // hepsini (paylaşım, kullanıcılar, puanlar, moderatörler, ben) birlikte alıp tek seferde göster.
+    () async {
+      const srv = GetOptions(source: Source.server);
+      try {
+        final fu = _db.collection('users').limit(300).get(srv);
+        final fg = _db.collection('grants').limit(500).get(srv);
+        final fm = _db.collection('mods').limit(100).get(srv);
+        final fme = _db.collection('users').doc(_myUid).get(srv);
+        final fp = _db.collection('posts').orderBy('ts', descending: true).limit(100).get(srv);
+        await Future.wait<Object?>([fp, fu, fg, fm, fme]).timeout(const Duration(seconds: 6));
+        _users = (await fu).docs;
+        _bonus = {for (final d in (await fg).docs) d.id: ((d.data()['pts'] as num?)?.toDouble() ?? 0) + ((d.data()['keep'] as num?)?.toDouble() ?? 0)};
+        _mods = (await fm).docs.map((d) => d.id).toSet();
+        _meInit = (await fme).data();
+      } catch (_) {}
       if (mounted) setState(() => _fresh = true);
-    });
+    }();
     // 3 Firestore akışı art arda gelince feed'i 3 kez baştan hesaplamasın
     void bump() {
       _bumpT ??= Timer(const Duration(milliseconds: 150), () {
@@ -195,6 +221,8 @@ class _FeedPageState extends State<FeedPage> {
 
   @override
   void dispose() {
+    feedScrollTop.removeListener(_toTop);
+    _scroll.dispose();
     _bumpT?.cancel();
     for (final s in _subs) { s.cancel(); }
     _ctl.dispose();
@@ -257,7 +285,8 @@ class _FeedPageState extends State<FeedPage> {
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: _me,
       builder: (context, meSnap) {
-        final meData = meSnap.data?.data();
+        final meData = meSnap.data?.data() ?? _meInit;
+        _followKnown = meData != null;
         final following = ((meData?['following'] as List?) ?? const []).map((e) => e.toString()).toSet();
         final tracked = ((meData?['trackedPosts'] as List?) ?? const []).map((e) => e.toString()).toSet();
         return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -325,6 +354,7 @@ class _FeedPageState extends State<FeedPage> {
               backgroundColor: c.sf,
               onRefresh: _refresh,
               child: ListView.builder(
+                controller: _scroll,
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(12, 10, 12, 20),
                 cacheExtent: 1200, // Kartlar ekrana girmeden önce hazırlansın (kaydırırken çizim takılmasın)
@@ -464,7 +494,7 @@ class _FeedPageState extends State<FeedPage> {
                 ),
               ),
               Positioned(left: -2, top: -2, child: Container(width: 20, height: 20, alignment: Alignment.center, decoration: BoxDecoration(color: rkCol, shape: BoxShape.circle, border: Border.all(color: c.sf, width: 2)), child: Text('${i + 1}', style: jakarta(10, FontWeight.w800, Colors.white)))),
-              if (!isMe && !fol) Positioned(right: -2, bottom: -2, child: GestureDetector(onTap: () => _toggleFollow(x.uid, false).catchError((e) { if (mounted) _toast(context, AuthService.errorText(e)); }), child: Container(width: 22, height: 22, decoration: BoxDecoration(color: c.ac, shape: BoxShape.circle, border: Border.all(color: c.sf, width: 2)), child: const Icon(Icons.add, size: 14, color: Colors.white)))),
+              if (!isMe && !fol && _followKnown) Positioned(right: -2, bottom: -2, child: GestureDetector(onTap: () => _toggleFollow(x.uid, false).catchError((e) { if (mounted) _toast(context, AuthService.errorText(e)); }), child: Container(width: 22, height: 22, decoration: BoxDecoration(color: c.ac, shape: BoxShape.circle, border: Border.all(color: c.sf, width: 2)), child: const Icon(Icons.add, size: 14, color: Colors.white)))),
             ]),
           ),
           const SizedBox(height: 4),

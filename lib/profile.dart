@@ -764,6 +764,7 @@ class _PeopleSheetState extends State<_PeopleSheet> {
                     : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                         stream: _ms,
                         builder: (context, ms) {
+                          final mReady = ms.hasData; // veri gelmeden "Takip Et" yazıp sonradan "Takiptesin"e dönmesin
                           final mf = ((ms.data?.data()?['following'] as List?) ?? const []).map((e) => e.toString()).toSet();
                           return ListView.builder(
                             padding: const EdgeInsets.only(bottom: 16),
@@ -786,7 +787,8 @@ class _PeopleSheetState extends State<_PeopleSheet> {
                                         Text('@${p.handle}', maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(12.5, FontWeight.w600, c.mu)),
                                       ]),
                                     ),
-                                    if (!isMe) ...[
+                                    if (!isMe && !mReady) const SizedBox(width: 104, height: 44),
+                                    if (!isMe && mReady) ...[
                                       const SizedBox(width: 8),
                                       GestureDetector(
                                         behavior: HitTestBehavior.opaque,

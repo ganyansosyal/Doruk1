@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'auth_service.dart';
+import 'athist_prefetch.dart';
 import 'bets.dart';
 import 'film.dart';
+import 'live.dart';
 import 'settle.dart';
 import 'theme.dart';
 import 'tjk.dart';
@@ -114,7 +116,11 @@ class _PredictPageState extends State<PredictPage> {
       _goFirstLeg();
     }
     _applyJump();
+    _prefetch();
   }
+
+  // Seçili hipodromun atlarının geçmiş bilgisini arka planda önceden çek (detay açılınca hazır olsun)
+  void _prefetch() => AtHistPrefetch.i.start(_city, _race);
 
   // Sekme canlı kaldığı için 'koşuya git' isteğini burada yakalıyoruz
   void _onJump() {
@@ -210,6 +216,7 @@ class _PredictPageState extends State<PredictPage> {
       _autoFix();
       _goFirstLeg();
     });
+    _prefetch();
   }
 
   List<int> _picks(int r, int slot) => (_sel.where((x) => x.r == r && x.slot == slot).map((x) => x.no).toList()..sort());
@@ -479,7 +486,7 @@ Widget build(BuildContext context) {
           GestureDetector(onTap: () => s.load(s.iso), child: Text('Yenile', style: jakarta(11.5, FontWeight.w800, c.ac))),
           const SizedBox(width: 10),
           GestureDetector(
-            onTap: () => launchUrl(Uri.parse('https://www.youtube.com/watch?v=I1FgwiDqpS8'), mode: LaunchMode.externalApplication),
+            onTap: () => showLive(context),
             child: Text('● Canlı yayın', style: jakarta(11.5, FontWeight.w800, c.red)),
           ),
         ]),
@@ -1028,12 +1035,12 @@ Widget _horseDetail(AppColors c, Horse h, String key) {
   Widget vidBtn(String url, String title, [AtRow? row]) => GestureDetector(
     onTap: () => _playVideo(url, title, h.name, row),
     child: Container(
-      padding: const EdgeInsets.fromLTRB(3, 3, 12, 3),
+      padding: const EdgeInsets.fromLTRB(2, 2, 9, 2),
       decoration: BoxDecoration(color: const Color(0xFF0F1A30), borderRadius: BorderRadius.circular(999)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Container(width: 20, height: 20, decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle), child: const Icon(Icons.play_arrow, color: Colors.white, size: 13)),
-        const SizedBox(width: 6),
-        Text('Videoyu izle', style: jakarta(11.5, FontWeight.w800, Colors.white)),
+        Container(width: 16, height: 16, decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle), child: const Icon(Icons.play_arrow, color: Colors.white, size: 11)),
+        const SizedBox(width: 5),
+        Text('Videoyu izle', style: jakarta(10, FontWeight.w800, Colors.white)),
       ]),
     ),
   );
@@ -1057,7 +1064,9 @@ Widget _horseDetail(AppColors c, Horse h, String key) {
         Expanded(child: left),
         if (hasRight) ...[
           const SizedBox(width: 8),
-          Flexible(
+          // Sağ sütun içeriği kadar yer kaplar ve hep sağ kenara yaslanır: kartlar arasında kayma olmaz
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 150),
             child: Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
               if (right.isNotEmpty) Text(right, textAlign: TextAlign.right, style: jakarta(12, FontWeight.w600, col)),
               if (right.isNotEmpty && btn != null) const SizedBox(height: 6),
