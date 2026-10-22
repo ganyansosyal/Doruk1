@@ -34,12 +34,38 @@ jobs:
           sed -i 's/minSdk = flutter.minSdkVersion/minSdk = maxOf(flutter.minSdkVersion, 23)/' android/app/build.gradle.kts 2>/dev/null || true
           sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion Math.max(flutter.minSdkVersion, 23)/' android/app/build.gradle 2>/dev/null || true
 
+      - name: Sabit imza anahtarını hazırla
+        env:
+          KS_BASE64: ${{ secrets.KS_BASE64 }}
+        run: |
+          echo "$KS_BASE64" | base64 -d > android/app/release.keystore
+          python3 - <<'PY'
+          p='android/app/build.gradle.kts'
+          s=open(p).read()
+          block='''android {
+              signingConfigs {
+                  create("release") {
+                      storeFile = file("release.keystore")
+                      storePassword = System.getenv("KS_PASS")
+                      keyAlias = System.getenv("KS_ALIAS")
+                      keyPassword = System.getenv("KS_PASS")
+                  }
+              }
+          '''
+          s=s.replace('android {',block,1)
+          s=s.replace('signingConfigs.getByName("debug")','signingConfigs.getByName("release")')
+          open(p,'w').write(s)
+          PY
+
       - run: flutter pub get
 
       - name: Uygulama simgesini üret
         run: dart run flutter_launcher_icons
 
       - run: flutter build apk --release
+        env:
+          KS_PASS: ${{ secrets.KS_PASS }}
+          KS_ALIAS: ${{ secrets.KS_ALIAS }}
 
       - uses: actions/upload-artifact@v4
         with:
