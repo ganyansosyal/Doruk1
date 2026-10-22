@@ -1265,8 +1265,14 @@ Widget _horseDetail(AppColors c, Horse h, String key) {
       final p = _picks(_race, 0);
       chips.add(_miniChip(c, _t.vir ? (_sel.isEmpty ? '–' : _sel.map((x) => x.no).join('-')) : (p.isEmpty ? '–' : p.join(',')), true, () {}));
     }
-    final k = cp == null ? 0 : kolon(cp);
-    final cost = cp == null ? 0.0 : couponCost(cp);
+    // Eksik ayak varken de seçilenlere göre "şimdilik" tutarı hesapla (web'deki kolonNow gibi)
+    Map<String, dynamic>? part = cp;
+    if (cp != null && _t.mode == 'legs') {
+      final pl = legs.where((l) => (l['picks'] as List).isNotEmpty).toList();
+      part = pl.isEmpty ? null : <String, dynamic>{...cp, 'legs': pl};
+    }
+    final k = part == null ? 0 : kolon(part);
+    final cost = part == null ? 0.0 : couponCost(part);
     final filled = _t.mode == 'legs' ? legs.where((l) => (l['picks'] as List).isNotEmpty).length : 0;
     
     return Container(
@@ -1278,7 +1284,7 @@ Widget _horseDetail(AppColors c, Horse h, String key) {
         Row(children: [
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(_t.mode == 'legs' ? '$filled/${_lr.length} ayak${filled < _lr.length ? ' · ${_lr.length - filled} eksik' : ''}' : '$k kolon', style: jakarta(10.5, FontWeight.w600, c.mu)),
+              Text(_t.mode == 'legs' ? '$filled/${_lr.length} ayak${filled < _lr.length ? ' · ${_lr.length - filled} eksik · şimdilik' : ''}' : '$k kolon', style: jakarta(10.5, FontWeight.w600, c.mu)),
               Text(money(cost), style: jakarta(18, FontWeight.w800, c.ac)),
             ]),
           ),
