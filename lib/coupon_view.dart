@@ -200,7 +200,12 @@ class CouponView extends StatelessWidget {
                   final r = legResOf(cp, l);
                   if (r == null || r.isEmpty) return Center(child: Text('—', style: jakarta(13, FontWeight.w700, c.mu)));
                   final rn = (l['r'] as num?)?.toInt() ?? 0;
-                  final g = (rule == 'win' && sameDay) ? TjkStore.i.results[(cp['city'] ?? '').toString()]?[rn]?.gny[r.first] : null;
+                  String? g;
+                  if (rule == 'win' && sameDay) {
+                    final byRace = TjkStore.i.results[(cp['city'] ?? '').toString()];
+                    final rr = byRace == null ? null : byRace[rn];
+                    if (rr != null) g = rr.gny[r.first];
+                  }
                   return Column(mainAxisSize: MainAxisSize.min, children: [
                     FittedBox(fit: BoxFit.scaleDown, child: Text(r.take(realN).join(' · '), style: jakarta(14, FontWeight.w800, c.tx))),
                     if (g != null && g.isNotEmpty) Text(g, style: jakarta(10.5, FontWeight.w700, c.mu)),
