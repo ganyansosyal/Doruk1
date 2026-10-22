@@ -56,17 +56,16 @@ class GanyanApp extends StatelessWidget {
         // Ekran küçültme (FittedBox) kaldırıldı: her kare ayrıca ölçeklenmesin, kaydırma akıcı olsun.
         // Site 445 genişliğe göre tasarlandı; dar telefonlarda sadece yazı boyutu orantılı küçülür.
         builder: (ctx, child) {
-          final mq = MediaQuery.of(ctx);
-          uiScale = (mq.size.width / 445.0).clamp(0.8, 1.0).toDouble();
-          return MediaQuery(
-            data: mq.copyWith(textScaler: TextScaler.noScaling),
+          final pad = MediaQuery.paddingOf(ctx);
+          uiScale = (MediaQuery.sizeOf(ctx).width / 445.0).clamp(0.8, 1.0).toDouble();
+          return MediaQuery.withNoTextScaling(
             child: AnnotatedRegion<SystemUiOverlayStyle>(
               value: _barStyle,
               child: Stack(fit: StackFit.expand, children: [
                 child!,
                 // Durum ve gezinme çubuğu yeşil
-                Positioned(left: 0, right: 0, top: 0, height: mq.padding.top, child: const IgnorePointer(child: ColoredBox(color: _barGreen))),
-                Positioned(left: 0, right: 0, bottom: 0, height: mq.padding.bottom, child: const IgnorePointer(child: ColoredBox(color: _barGreen))),
+                Positioned(left: 0, right: 0, top: 0, height: pad.top, child: const IgnorePointer(child: ColoredBox(color: _barGreen))),
+                Positioned(left: 0, right: 0, bottom: 0, height: pad.bottom, child: const IgnorePointer(child: ColoredBox(color: _barGreen))),
               ]),
             ),
           );

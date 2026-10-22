@@ -143,15 +143,25 @@ class KbSheet extends StatelessWidget {
   const KbSheet({super.key, required this.child, this.fraction = 0.7});
   @override
   Widget build(BuildContext context) {
-    final m = MediaQuery.of(context);
-    final kb = m.viewInsets.bottom;
-    final safe = m.viewPadding.bottom;
+    final kb = MediaQuery.viewInsetsOf(context).bottom;
+    final safe = MediaQuery.viewPaddingOf(context).bottom;
+    final h = MediaQuery.sizeOf(context).height;
     final bottom = kb > safe ? kb : safe;
-    final avail = m.size.height - bottom - 8;
-    final want = m.size.height * fraction;
+    final avail = h - bottom - 8;
+    final want = h * fraction;
     return Padding(
       padding: EdgeInsets.only(bottom: bottom),
       child: SizedBox(height: want < avail ? want : avail, child: child),
     );
   }
+}
+
+/// Klavye boşluğunu sadece kendisi dinler: içindeki ağır içerik yeniden kurulmaz, yalnızca alan kısalır/uzar.
+/// Tam ekran formlarda ve uzun listelerde `viewInsets`'i build içinde okumak yerine bunu kullan.
+class KbInset extends StatelessWidget {
+  final Widget child;
+  const KbInset({super.key, required this.child});
+  @override
+  Widget build(BuildContext context) =>
+      Padding(padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom), child: child);
 }

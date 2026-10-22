@@ -964,7 +964,6 @@ class _CommentsSheetState extends State<_CommentsSheet> {
   @override
   Widget build(BuildContext context) {
     final c = AppColors.of(context);
-    final hasText = _ctl.text.trim().isNotEmpty;
     return KbSheet(
       fraction: 0.7,
       child: Column(children: [
@@ -1054,16 +1053,21 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                           textInputAction: TextInputAction.send,
                           style: jakarta(13.5, FontWeight.w600, c.tx),
                           decoration: InputDecoration(border: InputBorder.none, counterText: '', isDense: true, contentPadding: const EdgeInsets.symmetric(vertical: 12), hintText: _reply == null ? 'Yorum yaz...' : 'Yanıtını yaz...', hintStyle: jakarta(13.5, FontWeight.w500, c.mu)),
-                          onChanged: (_) => setState(() {}),
                           onSubmitted: (_) => _add(),
                         ),
                       ),
-                      GestureDetector(
-                        onTap: hasText ? _add : null,
-                        child: Padding(
-                          padding: const EdgeInsets.all(8),
-                          child: Icon(Icons.send_rounded, color: hasText ? c.ac : c.mu.withAlpha(110), size: 22),
-                        ),
+                      ValueListenableBuilder<TextEditingValue>(
+                        valueListenable: _ctl,
+                        builder: (_, v, __) {
+                          final hasText = v.text.trim().isNotEmpty;
+                          return GestureDetector(
+                            onTap: hasText ? _add : null,
+                            child: Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: Icon(Icons.send_rounded, color: hasText ? c.ac : c.mu.withAlpha(110), size: 22),
+                            ),
+                          );
+                        },
                       ),
                     ]),
                   ),

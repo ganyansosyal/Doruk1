@@ -245,7 +245,13 @@ class _ProfileViewState extends State<ProfileView> {
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                   ),
                 ),
-                Align(alignment: Alignment.centerRight, child: Text('${bio.text.length}/160', style: jakarta(11, FontWeight.w600, c.mu))),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: bio,
+                    builder: (_, v, __) => Text('${v.text.length}/160', style: jakarta(11, FontWeight.w600, c.mu)),
+                  ),
+                ),
                 const SizedBox(height: 12),
                 Text('Biyografi yazı rengi', style: jakarta(12, FontWeight.w700, c.mu)),
                 const SizedBox(height: 8),
@@ -833,9 +839,8 @@ class _KbPad extends StatelessWidget {
   const _KbPad({required this.child});
   @override
   Widget build(BuildContext context) {
-    final m = MediaQuery.of(context);
-    final kb = m.viewInsets.bottom;
-    final safe = m.viewPadding.bottom + 8;
+    final kb = MediaQuery.viewInsetsOf(context).bottom;
+    final safe = MediaQuery.viewPaddingOf(context).bottom + 8;
     return SizedBox(
       height: double.infinity,
       child: Padding(padding: EdgeInsets.only(bottom: kb > safe ? kb : safe), child: child),

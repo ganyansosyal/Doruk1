@@ -710,7 +710,7 @@ void _pickType() {
         return true;
       }).toList();
       return SizedBox(
-        height: MediaQuery.of(ctx).size.height * 0.7,
+        height: MediaQuery.sizeOf(ctx).height * 0.7,
         child: Column(children: [
           const SizedBox(height: 12),
           Text('Bahis türü seç', style: jakarta(15, FontWeight.w800, c.tx)),
@@ -1400,7 +1400,7 @@ Widget _horseDetail(AppColors c, Horse h, String key) {
     final filled = _t.mode == 'legs' ? legs.where((l) => (l['picks'] as List).isNotEmpty).length : 0;
     
     return Container(
-      padding: EdgeInsets.fromLTRB(12, 8, 12, 8 + MediaQuery.of(context).padding.bottom * 0),
+      padding: EdgeInsets.fromLTRB(12, 8, 12, 8 + MediaQuery.paddingOf(context).bottom * 0),
       decoration: BoxDecoration(color: c.sf, border: Border(top: BorderSide(color: c.ln)), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)]),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [...chips, if (_sel.isNotEmpty) _clearBtn(c)])),

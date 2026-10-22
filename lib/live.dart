@@ -19,12 +19,24 @@ Future<void> showLive(BuildContext context) {
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
-    constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.88),
+    constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.88),
     backgroundColor: _bg,
     shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
     builder: (_) => const _LiveSheet(),
   );
 }
+
+// Web'deki gibi: YouTube oynatıcısı alttan ve üstten 80px uzatılıp kırpılır; böylece YouTube'un
+// başlık yazısı, "YouTube'da izle", logo ve alt kontrol çubuğu görünmez. Video 16:9 kutuya tam oturur
+// (tam ekranda da çalışır: genişlik = min(ekran genişliği, yükseklik*16/9)).
+const _cropJs = r'''(function(){try{
+var d=document;
+if(d.getElementById('lvcrop'))return;
+var s=d.createElement('style');s.id='lvcrop';
+s.textContent='html,body{margin:0!important;padding:0!important;width:100%!important;height:100%!important;overflow:hidden!important;background:#000!important}'
++'#player{position:absolute!important;left:50%!important;top:-80px!important;width:min(100vw,calc(100vh*16/9))!important;height:calc(100vh + 160px)!important;max-width:none!important;transform:translateX(-50%)!important;border:0!important;pointer-events:none!important}';
+(d.head||d.documentElement).appendChild(s);
+}catch(e){}})();''';
 
 class _Lv {
   final bool playing, wait;
@@ -77,7 +89,18 @@ class _LiveSheetState extends State<_LiveSheet> {
     super.dispose();
   }
 
+  int _n = 0;
+
+  void _crop() {
+    try {
+      _c.webViewController.runJavaScript(_cropJs);
+    } catch (_) {}
+  }
+
   Future<void> _tick() async {
+    // Sayfa yüklenene kadar ilk saniyelerde sık, sonra seyrek tekrar uygula (kendi kendini tekrarlamaz)
+    if (_n < 40 || _n % 6 == 0) _crop();
+    _n++;
     if (_busy) return;
     _busy = true;
     try {
@@ -187,7 +210,7 @@ class _LiveSheetState extends State<_LiveSheet> {
           ),
           Center(
             child: ConstrainedBox(
-              constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * (MediaQuery.of(context).orientation == Orientation.landscape ? 0.5 : 0.3)),
+              constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * (MediaQuery.orientationOf(context) == Orientation.landscape ? 0.5 : 0.3)),
               child: AspectRatio(
                 aspectRatio: 16 / 9,
                 child: YoutubePlayer(
@@ -314,7 +337,8 @@ class _OverlayState extends State<_Overlay> {
           behavior: HitTestBehavior.opaque,
           onTap: _tap,
           child: Stack(children: [
-            const Positioned.fill(child: SizedBox.shrink()),
+            // Duraklatılınca YouTube'un kendi durdurma ekranı (önerilen videolar) görünmesin
+            if (!v.playing) const Positioned.fill(child: ColoredBox(color: Colors.black)),
             if (v.wait) const Center(child: CircularProgressIndicator(color: _ac)),
             if (show && !v.wait)
               Center(

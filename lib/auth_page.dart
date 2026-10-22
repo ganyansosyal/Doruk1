@@ -294,8 +294,8 @@ class _AuthPageState extends State<AuthPage> {
   String? _err;
   String _photo = '';
   Uint8List? _bytes;
-  String _hint = '';
-  bool? _hintOk;
+  // Kullanıcı adı ipucu: sadece küçük yazı yeniden çizilsin, tüm form değil
+  final ValueNotifier<(String, bool?)> _hintV = ValueNotifier<(String, bool?)>(('', null));
   Timer? _deb;
 
   final _id = TextEditingController();
@@ -309,6 +309,7 @@ class _AuthPageState extends State<AuthPage> {
   @override
   void dispose() {
     _deb?.cancel();
+    _hintV.dispose();
     for (final t in [_id, _lpw, _name, _handle, _email, _rpw, _rpw2]) {
       t.dispose();
     }
@@ -350,38 +351,21 @@ class _AuthPageState extends State<AuthPage> {
     _deb?.cancel();
     final h = cleanHandle(v);
     if (h.isEmpty) {
-      setState(() {
-        _hint = '';
-        _hintOk = null;
-      });
+      _hintV.value = ('', null);
       return;
     }
     if (h.length < handleMin) {
-      setState(() {
-        _hint = 'En az $handleMin karakter.';
-        _hintOk = false;
-      });
+      _hintV.value = ('En az $handleMin karakter.', false);
       return;
     }
-    setState(() {
-      _hint = 'Kontrol ediliyor…';
-      _hintOk = null;
-    });
+    _hintV.value = ('Kontrol ediliyor…', null);
     _deb = Timer(const Duration(milliseconds: 500), () async {
       try {
         final taken = await AuthService.handleTaken(h);
         if (!mounted || cleanHandle(_handle.text) != h) return;
-        setState(() {
-          _hint = taken ? '@$h kullanılmakta.' : '@$h müsait.';
-          _hintOk = !taken;
-        });
+        _hintV.value = (taken ? '@$h kullanılmakta.' : '@$h müsait.', !taken);
       } catch (_) {
-        if (mounted) {
-          setState(() {
-            _hint = '';
-            _hintOk = null;
-          });
-        }
+        if (mounted) _hintV.value = ('', null);
       }
     });
   }
@@ -588,15 +572,25 @@ class _AuthPageState extends State<AuthPage> {
     const gap = SizedBox(height: 12);
     return Scaffold(
       backgroundColor: c.bg,
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: RadialGradient(
-            center: const Alignment(0, -0.8),
-            radius: 1.0,
-            colors: [c.ac.withAlpha(46), Colors.transparent],
+      // Klavye açılınca arka plan/gradyan yeniden ölçülüp çizilmesin; boşluğu sadece _KbInset yönetir
+      resizeToAvoidBottomInset: false,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: RepaintBoundary(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: const Alignment(0, -0.8),
+                    radius: 1.0,
+                    colors: [c.ac.withAlpha(46), Colors.transparent],
+                  ),
+                ),
+              ),
+            ),
           ),
-        ),
-        child: SafeArea(
+          SafeArea(
+          child: _KbInset(
           child: Align(
             alignment: Alignment.topCenter,
             child: SingleChildScrollView(
@@ -673,19 +667,18 @@ class _AuthPageState extends State<AuthPage> {
                                 LengthLimitingTextInputFormatter(handleMax),
                               ],
                               below: Padding(
-                                      padding: const EdgeInsets.only(top: 6, left: 4),
-                                      child: SizedBox(
-                                        height: 16,
-                                        child: Text(
-                                        _hint,
-                                        style: jakarta(
-                                          12,
-                                          FontWeight.w600,
-                                          _hintOk == true ? c.ac : (_hintOk == false ? c.red : c.mu),
-                                        ),
-                                      ),
-                                      ),
+                                padding: const EdgeInsets.only(top: 6, left: 4),
+                                child: SizedBox(
+                                  height: 16,
+                                  child: ValueListenableBuilder<(String, bool?)>(
+                                    valueListenable: _hintV,
+                                    builder: (_, h, __) => Text(
+                                      h.$1,
+                                      style: jakarta(12, FontWeight.w600, h.$2 == true ? c.ac : (h.$2 == false ? c.red : c.mu)),
                                     ),
+                                  ),
+                                ),
+                              ),
                             ),
                             gap,
                             _field(c,
@@ -765,8 +758,19 @@ class _AuthPageState extends State<AuthPage> {
               ),
             ),
           ),
-        ),
+          ),
+          ),
+        ],
       ),
     );
   }
+}
+
+/// Klavye boşluğunu sadece kendisi dinler: form yeniden çizilmez, sadece kaydırma alanı kısalır (akıcı açılıp kapanır)
+class _KbInset extends StatelessWidget {
+  final Widget child;
+  const _KbInset({required this.child});
+  @override
+  Widget build(BuildContext context) =>
+      Padding(padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom), child: child);
 }

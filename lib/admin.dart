@@ -70,7 +70,7 @@ void _toast(BuildContext context, String text) {
     builder: (ctx) => Positioned(
       left: 24,
       right: 24,
-      bottom: MediaQuery.of(ctx).viewInsets.bottom + 90,
+      bottom: MediaQuery.viewInsetsOf(ctx).bottom + 90,
       child: IgnorePointer(
         child: Center(
           child: Material(
@@ -257,7 +257,7 @@ class _AccessGateState extends State<AccessGate> with WidgetsBindingObserver {
         Positioned(
           left: 0,
           right: 0,
-          bottom: 84 + MediaQuery.of(context).padding.bottom,
+          bottom: 84 + MediaQuery.paddingOf(context).bottom,
           child: Center(
             child: Material(
               color: c.red,
@@ -1220,9 +1220,9 @@ class _AdminSheetState extends State<_AdminSheet> {
         Expanded(
           child: !_loaded
               ? Center(child: CircularProgressIndicator(color: c.ac))
-              : ListView(
+              : KbInset(child: ListView(
                   keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                  padding: EdgeInsets.fromLTRB(14, 4, 14, 24 + MediaQuery.of(context).viewInsets.bottom),
+                  padding: const EdgeInsets.fromLTRB(14, 4, 14, 24),
                   children: [
                     Row(children: [
                       box('${all.length}', 'Kayıtlı'),
@@ -1271,7 +1271,7 @@ class _AdminSheetState extends State<_AdminSheet> {
                     else
                       ...rows,
                   ],
-                ),
+                )),
         ),
       ]),
     );
@@ -1465,7 +1465,7 @@ class _GiftDialogState extends State<_GiftDialog> {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 400),
         child: SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(18, 18, 18, 14 + MediaQuery.of(context).viewInsets.bottom),
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 14), // Dialog klavye boşluğunu zaten kendisi veriyor
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
             Center(child: Text('🎁 ${widget.name}', style: jakarta(18, FontWeight.w800, c.tx))),
             const SizedBox(height: 6),
