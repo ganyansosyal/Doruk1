@@ -7,6 +7,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -282,6 +283,8 @@ String _taken(String h) => '@$h kullanılmakta. Başka bir kullanıcı adı dene
 
 class AuthService {
   static final ValueNotifier<bool> busy = ValueNotifier<bool>(false);
+  // Kayıt sürerken bootstrap beklesin (yoksa otomatik profil açıp kaydı bozuyordu)
+  static bool registering = false;
 
   static FirebaseAuth get _auth => FirebaseAuth.instance;
   static FirebaseFirestore get _db => FirebaseFirestore.instance;
@@ -333,6 +336,7 @@ class AuthService {
     required String photo,
   }) async {
     busy.value = true;
+    registering = true;
     try {
       if (await handleTaken(handle)) throw AuthException(_taken(handle));
       final cred = await _auth.createUserWithEmailAndPassword(email: email, password: password);
@@ -349,6 +353,33 @@ class AuthService {
     } catch (e) {
       throw AuthException(errorText(e));
     } finally {
+      registering = false;
+      busy.value = false;
+    }
+  }
+
+  static const _webClientId = '871686667838-pnva3a84epi19lnbl7g35dmojr5132b6.apps.googleusercontent.com';
+
+  /// Google ile giriş. İptal edilirse false döner.
+  static Future<bool> loginWithGoogle() async {
+    busy.value = true;
+    registering = true; // profil oluşana kadar bootstrap beklesin
+    try {
+      final g = GoogleSignIn(serverClientId: _webClientId, scopes: ['email']);
+      await g.signOut(); // her seferinde hesap seçici açılsın
+      final acc = await g.signIn();
+      if (acc == null) return false;
+      final ga = await acc.authentication;
+      if (ga.idToken == null) throw const AuthException('Google kimlik doğrulaması alınamadı.');
+      final cred = GoogleAuthProvider.credential(idToken: ga.idToken, accessToken: ga.accessToken);
+      final uc = await _auth.signInWithCredential(cred);
+      final user = uc.user!;
+      if (await loadProfile(user.uid) == null) await _ensureProfile(user);
+      return true;
+    } catch (e) {
+      throw AuthException(errorText(e));
+    } finally {
+      registering = false;
       busy.value = false;
     }
   }
@@ -385,6 +416,9 @@ class AuthService {
   }
 
   static Future<Profile> bootstrap(User u) async {
+    for (var i = 0; i < 100 && registering; i++) {
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
     final p = await loadProfile(u.uid) ?? await _ensureProfile(u);
     profileNotifier.value = p;
     return p;

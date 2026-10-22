@@ -274,6 +274,21 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
+  Future<void> _google() async {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _err = null;
+      _busy = true;
+    });
+    try {
+      await AuthService.loginWithGoogle();
+    } on AuthException catch (e) {
+      if (mounted) setState(() => _err = e.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _forgot() async {
     final id = _id.text.trim();
     if (id.isEmpty) {
@@ -567,7 +582,7 @@ class _AuthPageState extends State<AuthPage> {
                           SizedBox(
                             height: 48,
                             child: OutlinedButton(
-                              onPressed: _busy ? null : () => _toast('Google ile giriş bir sonraki adımda eklenecek.'),
+                              onPressed: _busy ? null : _google,
                               style: OutlinedButton.styleFrom(
                                 side: BorderSide(color: c.ln, width: 1.2),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
