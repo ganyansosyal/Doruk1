@@ -62,12 +62,12 @@ class GlideScrollPhysics extends BouncingScrollPhysics {
   Simulation? createBallisticSimulation(ScrollMetrics position, double velocity) => super.createBallisticSimulation(position, velocity);
 }
 
-class NoBounceScroll extends MaterialScrollBehavior {
-  const NoBounceScroll();
+/// Android 12 tarzı hafif esneme (üstten ve alttan). Her Android sürümünde ve Flutter sürümünde sabit çalışır.
+class StretchScroll extends MaterialScrollBehavior {
+  const StretchScroll();
   @override
-  Widget buildOverscrollIndicator(BuildContext context, Widget child, ScrollableDetails details) => child;
-  @override
-  ScrollPhysics getScrollPhysics(BuildContext context) => const GlideScrollPhysics();
+  Widget buildOverscrollIndicator(BuildContext context, Widget child, ScrollableDetails details) =>
+      StretchingOverscrollIndicator(axisDirection: details.direction, child: child);
 }
 
 ThemeData buildTheme(AppColors c, Brightness b) {
