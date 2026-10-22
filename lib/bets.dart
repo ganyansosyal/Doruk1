@@ -33,7 +33,7 @@ const kTypes = <BetType>[
   BetType('pi1', 'Plase İkili (Tek kolon)', 'race', 'pl2', exact: 2, sub: 'tek kolon', desc: 'Plase ikili, tek kolon', hint: 'Tam 2 at seç.'),
   BetType('su', 'Sıralı Üçlü', 'race', 'slots', slots: 3, sub: 'sıralı ilk 3', desc: 'İlk üç atı sırasıyla bul', hint: 'Üstteki sekmeden sırayı seç (1. / 2. / 3. At).'),
   BetType('suv', 'Sıralı Üçlü (Virgüllü)', 'race', 'slots', slots: 3, one: true, vir: true, sub: 'sıralı ilk 3', desc: 'En az 3 at seç, sıran önemli (virgüllü)', hint: 'Atlara sırayla dokun (en az 3).'),
-  BetType('tb', 'Tabela Bahis', 'race', 'any4', exact: 4, tabs: 4, per: true, sub: 'ilk 4', desc: 'İlk dört atı sırasız bul', hint: 'Her sekmeye bir at seç (1.–4. At).'),
+  BetType('tb', 'Tabela Bahis', 'race', 'any4', tabs: 4, sub: 'ilk 4', desc: 'İlk dört atı sırasız bul', hint: 'Her sekmeye bir veya daha fazla at seç (1.–4. At).'),
   BetType('tbv', 'Tabela (Virgüllü)', 'race', 'any4', sub: 'ilk 4', desc: 'İlk dört atı sırasız bul, çoklu seçim', hint: 'İlk dörde girebilecek atları seç (en az 4).'),
   BetType('s5', 'Sıralı Beşli', 'race', 'slots', slots: 5, sub: 'sıralı ilk 5', desc: 'İlk beş atı sırasıyla bul', hint: 'Üstteki sekmeden sırayı seç (1.–5. At).'),
   BetType('s5v', 'Sıralı Beşli (Virgüllü)', 'race', 'slots', slots: 5, one: true, vir: true, sub: 'sıralı ilk 5', desc: 'En az 5 at seç, sıran önemli (virgüllü)', hint: 'Atlara sırayla dokun (en az 5).'),
@@ -207,6 +207,27 @@ int kolon(Map c) {
   if (rule == 'any2' || rule == 'pl2') {
     final m = ps[0].length;
     return m * (m - 1) ~/ 2;
+  }
+  if (rule == 'any4' && legs.isNotEmpty && legs[0]['sets'] != null) {
+    // Sekmeli Tabela: her sekmeden bir at seçilen, birbirinden farklı dörtlü kombinasyonlar (sırasız, aynı set bir kez sayılır)
+    final lists = ((legs[0]['sets'] as List?) ?? const [])
+        .whereType<Map>()
+        .map((m) => ((m['p'] as List?) ?? const []).whereType<num>().map((e) => e.toInt()).toList())
+        .toList();
+    if (lists.length < 4 || lists.any((l) => l.isEmpty)) return 0;
+    final seen = <String>{};
+    void rec(int i, List<int> cur) {
+      if (i == lists.length) {
+        seen.add(([...cur]..sort()).join('-'));
+        return;
+      }
+      for (final n in lists[i]) {
+        if (!cur.contains(n)) rec(i + 1, [...cur, n]);
+      }
+    }
+
+    rec(0, []);
+    return seen.length;
   }
   if (rule == 'any4') {
     final m = ps[0].length;
