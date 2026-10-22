@@ -52,7 +52,7 @@ class GanyanApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         showPerformanceOverlay: perf,
         themeMode: mode,
-        scrollBehavior: const MaterialScrollBehavior(),
+        scrollBehavior: const NoBounceScroll(),
         // Ekran küçültme (FittedBox) kaldırıldı: her kare ayrıca ölçeklenmesin, kaydırma akıcı olsun.
         // Site 445 genişliğe göre tasarlandı; dar telefonlarda sadece yazı boyutu orantılı küçülür.
         builder: (ctx, child) {
