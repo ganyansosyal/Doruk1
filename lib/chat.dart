@@ -15,7 +15,10 @@ Future<Profile?> _chatProfile(String uid) {
   return _pf.putIfAbsent(uid, () => AuthService.loadProfile(uid).then((p) {
         _pv[uid] = p;
         return p;
-      }).catchError((_) => null));
+      }).catchError((_) {
+        _pf.remove(uid); // hata kalıcı olmasın, sonraki çizimde tekrar dene
+        return null;
+      }));
 }
 
 void openChat(BuildContext context) {

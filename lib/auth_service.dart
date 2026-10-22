@@ -68,7 +68,7 @@ ImageProvider? _imageOf(String s) {
     }
   } catch (_) {}
   if (_imgCache.length > 600) _imgCache.remove(_imgCache.keys.first);
-  _imgCache[s] = r;
+  if (r != null) _imgCache[s] = r;
   return r;
 }
 
@@ -117,6 +117,40 @@ Future<void> warmAvatars(Iterable<String> photos, List<int> sizes) async {
   }
 }
 
+class _Bus extends ChangeNotifier {
+  void ping() => notifyListeners();
+}
+
+/// Tüm avatarlar için tek ortak canlı kaynak: users koleksiyonu dinlenir (feed/liderler ile aynı sorgu,
+/// Firestore tek dinleme olarak paylaşır). Biri fotoğrafını değiştirince her yerdeki avatar anında güncellenir.
+class _LiveUsers {
+  static final Map<String, String> photo = {};
+  static final _Bus bus = _Bus();
+  static StreamSubscription? _sub;
+
+  static void start() {
+    if (_sub != null) return;
+    try {
+      _sub = FirebaseFirestore.instance.collection('users').limit(300).snapshots().listen((s) {
+        var changed = false;
+        for (final d in s.docs) {
+          final ph = (d.data()['photo'] ?? '').toString();
+          if (photo[d.id] != ph) {
+            photo[d.id] = ph;
+            changed = true;
+          }
+        }
+        if (changed) bus.ping();
+      }, onError: (_) {
+        _sub?.cancel();
+        _sub = null; // çıkış/izin hatası: sonraki avatarda yeniden dene
+      });
+    } catch (_) {
+      _sub = null;
+    }
+  }
+}
+
 class Avatar extends StatefulWidget {
   final Profile? profile;
   final double size;
@@ -131,6 +165,32 @@ class _AvatarState extends State<Avatar> {
   String _photo = '';
   int _px = 0;
 
+  // Canlı fotoğraf varsa o, yoksa verilen profilin fotoğrafı
+  String _eff() {
+    final uid = widget.profile?.uid ?? '';
+    final live = uid.isEmpty ? null : _LiveUsers.photo[uid];
+    return live ?? (widget.profile?.photo ?? '');
+  }
+
+  void _onLive() {
+    if (!mounted || _eff() == _photo) return;
+    _sync();
+    setState(() {});
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _LiveUsers.start();
+    _LiveUsers.bus.addListener(_onLive);
+  }
+
+  @override
+  void dispose() {
+    _LiveUsers.bus.removeListener(_onLive);
+    super.dispose();
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -144,7 +204,7 @@ class _AvatarState extends State<Avatar> {
   }
 
   void _sync() {
-    final photo = widget.profile?.photo ?? '';
+    final photo = _eff();
     final px = (widget.size * MediaQuery.devicePixelRatioOf(context)).round();
     if (photo == _photo && px == _px && (_img != null || photo.isEmpty)) return;
     final changedPhoto = photo != _photo;
@@ -159,6 +219,24 @@ class _AvatarState extends State<Avatar> {
     });
   }
 
+  // Çözülmüş önbellek henüz hazır değilse / çözme başarısız olduysa fotoğrafı doğrudan çiz.
+  // gaplessPlayback: aynı fotoğraf yeniden çizilirken boş kare/titreme olmaz.
+  Widget _fallback(String letter, double size) {
+    final txt = Text(letter, style: jakarta(size * 0.42, FontWeight.w800, const Color(0xFF7A4B00)));
+    final raw = _photo.isEmpty ? null : _imageOf(_photo);
+    if (raw == null) return txt;
+    return Image(
+      image: ResizeImage.resizeIfNeeded(_px, null, raw),
+      width: size,
+      height: size,
+      fit: BoxFit.cover,
+      gaplessPlayback: true,
+      filterQuality: FilterQuality.medium,
+      frameBuilder: (c, child, frame, sync) => (frame == null && !sync) ? Center(child: txt) : child,
+      errorBuilder: (_, __, ___) => Center(child: txt),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = widget.size;
@@ -171,9 +249,9 @@ class _AvatarState extends State<Avatar> {
       alignment: Alignment.center,
       decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFFFD66B)),
       clipBehavior: Clip.antiAlias,
-      child: img == null
-          ? Text(letter, style: jakarta(size * 0.42, FontWeight.w800, const Color(0xFF7A4B00)))
-          : RawImage(image: img, width: size, height: size, fit: BoxFit.cover, filterQuality: FilterQuality.medium),
+      child: img != null
+          ? RawImage(image: img, width: size, height: size, fit: BoxFit.cover, filterQuality: FilterQuality.medium)
+          : _fallback(letter, size),
     );
   }
 }
