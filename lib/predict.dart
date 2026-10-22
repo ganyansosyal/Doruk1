@@ -167,9 +167,18 @@ class _PredictPageState extends State<PredictPage> {
     if (lr.isEmpty) return;
     if (_t.mode == 'legs') {
       _race = lr.firstWhere(_open, orElse: () => lr.first);
-    } else if (!lr.contains(_race) || !_open(_race)) {
-      _race = _nextRace(_city);
+      return;
     }
+    // Tek koşuluk bahis (Tabela, Sıralı Üçlü…): bu bahsin oynandığı koşuya geç; koşu bittiyse sıradaki koşuya geç
+    final key = oyunKey[_t.k];
+    if (key != null && key != 'g1') {
+      final ks = allRaces(_city).where((r) => oyunMusait(_t, _city, r) && _open(r)).toList();
+      if (ks.isNotEmpty && !ks.contains(_race)) {
+        _race = ks.firstWhere((r) => r >= _race, orElse: () => ks.first);
+        return;
+      }
+    }
+    if (!lr.contains(_race) || !_open(_race)) _race = _nextRace(_city);
   }
 
   void _autoFix({bool silent = false}) {
@@ -193,10 +202,13 @@ class _PredictPageState extends State<PredictPage> {
 
   void _setType(BetType t) {
     setState(() {
-      _t = t;
-      _sel.clear();
-      _slot = 0;
-      _misli = 1;
+      if (t.k != _t.k) {
+        if (_sel.isNotEmpty) _toast('Bahis türü değişti, seçimler temizlendi.');
+        _t = t;
+        _sel.clear();
+        _slot = 0;
+        _misli = 1;
+      }
       _autoFix();
       _goFirstLeg();
     });
@@ -472,7 +484,9 @@ Widget build(BuildContext context) {
   final race = s.race(_city, _race);
   final lr = _lr;
   final st = _t.mode == 'legs' ? legStarts(_t, _city) : <int>[];
-  
+  final tabRaces0 = _t.mode == 'race' ? lr.where((r) => oyunMusait(_t, _city, r)).toList() : lr;
+  final tabRaces = tabRaces0.isEmpty ? lr : tabRaces0;
+
   return Column(children: [
     Expanded(
       child: ListView(padding: const EdgeInsets.fromLTRB(12, 8, 12, 12), children: [
@@ -519,7 +533,7 @@ Widget build(BuildContext context) {
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(children: [
-            for (var i = 0; i < lr.length; i++) _legTab(c, i, lr[i]),
+            for (var i = 0; i < tabRaces.length; i++) _legTab(c, i, tabRaces[i]),
           ]),
         ),
         const SizedBox(height: 8),
@@ -593,24 +607,50 @@ Widget _legTab(AppColors c, int i, int r) {
   final on = r == _race;
   final has = _sel.any((x) => x.r == r);
   final legs = _t.mode == 'legs';
+  final fin = s.raceDone(_city, r);
+  final fg = on ? c.on : c.tx;
   return Padding(
     padding: const EdgeInsets.only(right: 6),
-    child: GestureDetector(
-      onTap: () => setState(() {
-        _race = r;
-        if (_t.mode == 'race' && _sel.any((x) => x.r != r)) {
-          _sel.clear();
-          _toast('Yeni koşu için seçimler temizlendi.');
-        }
-        _slot = 0;
-      }),
-      child: Container(
-        constraints: const BoxConstraints(minWidth: 60),
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
-        decoration: BoxDecoration(color: on ? c.ac : c.sf, borderRadius: BorderRadius.circular(12), border: Border.all(color: on ? c.ac : c.ln, width: 1)),
-        child: Column(children: [
-          Text('${has && legs ? '✓ ' : ''}${legs ? '${i + 1}. Ayak' : '$r. Koşu'}', style: jakarta(12, FontWeight.w800, on ? c.on : c.tx)),
-          Text(legs ? '$r. Koşu' : _saat(r), style: jakarta(10, FontWeight.w600, on ? c.on : c.mu)),
+    child: Opacity(
+      opacity: fin && !on ? 0.6 : 1,
+      child: GestureDetector(
+        onTap: () => setState(() {
+          _race = r;
+          if (_t.mode == 'race' && _sel.any((x) => x.r != r)) {
+            _sel.clear();
+            _toast('Yeni koşu için seçimler temizlendi.');
+          }
+          _slot = 0;
+        }),
+        child: Stack(children: [
+          Container(
+            constraints: const BoxConstraints(minWidth: 60),
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+            decoration: BoxDecoration(color: on ? c.ac : c.sf, borderRadius: BorderRadius.circular(12), border: Border.all(color: on ? c.ac : c.ln, width: 1)),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              if (legs && fin) Text('✓', style: jakarta(12, FontWeight.w800, fg)),
+              if (legs) Text('${i + 1}. Ayak', style: jakarta(12, FontWeight.w800, fg))
+              else
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text('${fin ? '✓ ' : ''}$r. Koşu', style: jakarta(12, FontWeight.w800, fg)),
+                  if (fin) ...[
+                    const SizedBox(width: 5),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      decoration: BoxDecoration(color: on ? const Color(0x3DFFFFFF) : const Color(0x241A9B5C), borderRadius: BorderRadius.circular(5)),
+                      child: Text('Bitti', style: jakarta(8.5, FontWeight.w800, on ? c.on : const Color(0xFF1A9B5C))),
+                    ),
+                  ],
+                ]),
+              Text(legs ? '$r. Koşu' : _saat(r), style: jakarta(10, FontWeight.w600, on ? c.on : c.mu)),
+            ]),
+          ),
+          if (has)
+            Positioned(
+              top: 5,
+              right: 5,
+              child: Container(width: 6, height: 6, decoration: BoxDecoration(color: c.gold, shape: BoxShape.circle)),
+            ),
         ]),
       ),
     ),
