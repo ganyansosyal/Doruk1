@@ -906,6 +906,55 @@ Future<List<FilmRow>> _sonucYukle(AtRow row) async {
   return rows;
 }
 
+// "05.04.2026" -> "7 ay önce" (webdeki galipGun ile aynı)
+String _gunOnce(String t) {
+  final m = RegExp(r'^(\d{1,2})[./](\d{1,2})[./](\d{4})$').firstMatch(t.trim());
+  if (m == null) return '';
+  final now = DateTime.now();
+  final d0 = DateTime(now.year, now.month, now.day);
+  final d1 = DateTime(int.parse(m.group(3)!), int.parse(m.group(2)!), int.parse(m.group(1)!));
+  final n = d0.difference(d1).inDays;
+  if (n < 0) return '';
+  if (n == 0) return 'Bugün';
+  if (n == 1) return 'Dün';
+  if (n < 60) return '$n gün önce';
+  if (n < 730) return '${(n / 30).round()} ay önce';
+  return '${n ~/ 365} yıl önce';
+}
+
+// Son yarışta atın numarasını, o koşunun programından kulvara göre bulur (webdeki NO rozeti)
+final Map<String, String> _yarNoMem = {};
+Future<String> _yarNoBul(AtRow row) async {
+  if (row.no.isNotEmpty) return row.no;
+  final key = '${row.sh}|${row.t}|${row.kn}|${row.st}';
+  final hit = _yarNoMem[key];
+  if (hit != null) return hit;
+  try {
+    final m = RegExp(r'^(\d{1,2})[./](\d{1,2})[./](\d{4})$').firstMatch(row.t);
+    final kn = int.tryParse(row.kn);
+    final st = int.tryParse(row.st);
+    if (m == null || kn == null || st == null || row.sh.isEmpty) return '';
+    final iso = '${m.group(3)}-${m.group(2)!.padLeft(2, '0')}-${m.group(1)!.padLeft(2, '0')}';
+    final hedef = _nkey(row.sh);
+    City? c;
+    for (final x in await getCities(iso)) {
+      final a = _nkey(x.name);
+      if (a.startsWith(hedef) || hedef.startsWith(a)) {
+        c = x;
+        break;
+      }
+    }
+    if (c == null) return '';
+    for (final k in await getProgram(c, iso)) {
+      if (k.no != kn) continue;
+      for (final h in k.atlar) {
+        if (int.tryParse(h.st) == st) return _yarNoMem[key] = '${h.no}';
+      }
+    }
+  } catch (_) {}
+  return '';
+}
+
 Future<void> _playVideo(String url, String title, String horseName, [AtRow? row]) async {
   if (url.isEmpty) return;
   final mp4 = await getVideoMp4(url, s.iso);
@@ -979,15 +1028,57 @@ Widget _horseDetail(AppColors c, Horse h, String key) {
   Widget vidBtn(String url, String title, [AtRow? row]) => GestureDetector(
     onTap: () => _playVideo(url, title, h.name, row),
     child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: const Color(0xFF111827), borderRadius: BorderRadius.circular(16)),
+      padding: const EdgeInsets.fromLTRB(3, 3, 12, 3),
+      decoration: BoxDecoration(color: const Color(0xFF0F1A30), borderRadius: BorderRadius.circular(999)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(Icons.play_arrow, color: Colors.white, size: 10),
-        const SizedBox(width: 4),
-        Text('Videoyu izle', style: jakarta(10, FontWeight.w700, Colors.white)),
+        Container(width: 20, height: 20, decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle), child: const Icon(Icons.play_arrow, color: Colors.white, size: 13)),
+        const SizedBox(width: 6),
+        Text('Videoyu izle', style: jakarta(11.5, FontWeight.w800, Colors.white)),
       ]),
     ),
   );
+
+  // Webdeki .hgal kartı: küçük başlık + büyük satır solda, sağda ek bilgi + buton
+  Widget hCard(Color col, String small, String big, {String right = '', Widget? btn, Widget? lead, String below = '', bool center = false}) {
+    final left = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(small, style: jakarta(10.5, FontWeight.w700, col)),
+      const SizedBox(height: 1),
+      Text(big, style: jakarta(15, FontWeight.w800, col).copyWith(height: 1.25)),
+      if (below.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Text(below, style: jakarta(12, FontWeight.w600, col))),
+    ]);
+    final hasRight = right.isNotEmpty || btn != null;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(color: col.withAlpha(28), borderRadius: BorderRadius.circular(10)),
+      child: Row(crossAxisAlignment: center ? CrossAxisAlignment.center : CrossAxisAlignment.start, children: [
+        if (lead != null) ...[lead, const SizedBox(width: 10)],
+        Expanded(child: left),
+        if (hasRight) ...[
+          const SizedBox(width: 8),
+          Flexible(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
+              if (right.isNotEmpty) Text(right, textAlign: TextAlign.right, style: jakarta(12, FontWeight.w600, col)),
+              if (right.isNotEmpty && btn != null) const SizedBox(height: 6),
+              if (btn != null) btn,
+            ]),
+          ),
+        ],
+      ]),
+    );
+  }
+
+  Widget noBox(String no) => Container(
+        constraints: const BoxConstraints(minWidth: 34),
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        decoration: BoxDecoration(color: const Color(0xFF7C3AED), borderRadius: BorderRadius.circular(9)),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Text('NO', style: jakarta(8, FontWeight.w700, Colors.white70)),
+          Text(no, style: jakarta(16, FontWeight.w800, Colors.white).copyWith(height: 1)),
+        ]),
+      );
 
   return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     if (rows.isNotEmpty) Container(decoration: BoxDecoration(border: Border(top: BorderSide(color: c.ln))), child: Column(children: rows)),
@@ -1013,78 +1104,30 @@ Widget _horseDetail(AppColors c, Horse h, String key) {
       builder: (context, snapshot) {
         final yaris = snapshot.data?.yaris;
         if (yaris == null) return const SizedBox.shrink();
-        return Container(
-          margin: const EdgeInsets.only(top: 6),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(color: const Color(0xFF7C3AED).withAlpha(20), borderRadius: BorderRadius.circular(10)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                decoration: BoxDecoration(color: const Color(0xFF7C3AED), borderRadius: BorderRadius.circular(4)),
-                child: Text(yaris.no, style: jakarta(9, FontWeight.w800, Colors.white)),
-              ),
-              const SizedBox(width: 6),
-              Expanded(child: Text('Son yarış · ${yaris.k}', maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(10, FontWeight.w800, const Color(0xFF7C3AED)))),
-              const SizedBox(width: 6),
-              Text(yaris.y, style: jakarta(9.5, FontWeight.w600, const Color(0xFF7C3AED))),
-            ]),
-            const SizedBox(height: 4),
-            Row(children: [
-              Expanded(child: Text(yaris.d, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(13, FontWeight.w800, const Color(0xFF7C3AED)))),
-              if (yaris.v.isNotEmpty) vidBtn(yaris.v, "Son Yarış", yaris),
-            ]),
-          ]),
+        final gun = _gunOnce(yaris.t);
+        return FutureBuilder<String>(
+          future: _yarNoBul(yaris),
+          initialData: yaris.no,
+          builder: (context, ns) {
+            final no = ns.data ?? '';
+            return hCard(const Color(0xFF7C3AED), 'Son yarış${gun.isEmpty ? '' : ' · $gun'}', yaris.d.isNotEmpty ? yaris.d : yaris.t,
+                right: yaris.y, btn: yaris.v.isNotEmpty ? vidBtn(yaris.v, 'Son Yarış', yaris) : null, lead: no.isNotEmpty ? noBox(no) : null);
+          },
         );
-      }
+      },
     ),
 
-    if (eid.isNotEmpty)
-      Container(
-        margin: const EdgeInsets.only(top: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(color: const Color(0xFF16A34A).withAlpha(20), borderRadius: BorderRadius.circular(10)),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('En iyi derece', style: jakarta(10, FontWeight.w600, const Color(0xFF16A34A))),
-                Text(eid, style: jakarta(13, FontWeight.w800, const Color(0xFF16A34A))),
-              ]),
-            ),
-            if (eidSub.isNotEmpty)
-              Flexible(child: Text(eidSub, textAlign: TextAlign.right, style: jakarta(9.5, FontWeight.w700, const Color(0xFF16A34A)))),
-          ],
-        ),
-      ),
+    if (eid.isNotEmpty) hCard(const Color(0xFF16A34A), 'En iyi derece', eid, right: eidSub, center: true),
 
     FutureBuilder<AtHist>(
       future: getAtHist(h.atId),
       builder: (context, snapshot) {
         final gal = snapshot.data?.galibiyet;
         if (gal == null) return const SizedBox.shrink();
-        return Container(
-          margin: const EdgeInsets.only(top: 6),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(color: const Color(0xFFD97706).withAlpha(20), borderRadius: BorderRadius.circular(10)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(
-              children: [
-                Expanded(child: Text('Son galibiyet · ${gal.k}', maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(10, FontWeight.w800, const Color(0xFFD97706)))),
-                const SizedBox(width: 6),
-                Text(gal.y, style: jakarta(9.5, FontWeight.w600, const Color(0xFFD97706))),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Expanded(child: Text('${gal.t} · ${gal.d}', maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(12, FontWeight.w800, const Color(0xFFD97706)))),
-                if (gal.v.isNotEmpty) vidBtn(gal.v, "Son Galibiyet", gal),
-              ],
-            ),
-          ]),
-        );
-      }
+        final gun = _gunOnce(gal.t);
+        return hCard(const Color(0xFFE8890C), 'Son galibiyet${gun.isEmpty ? '' : ' · $gun'}', gal.d.isNotEmpty ? '${gal.t} · ${gal.d}' : gal.t,
+            right: gal.y, btn: gal.v.isNotEmpty ? vidBtn(gal.v, 'Son Galibiyet', gal) : null);
+      },
     ),
 
     FutureBuilder<AtRow?>(
@@ -1092,20 +1135,9 @@ Widget _horseDetail(AppColors c, Horse h, String key) {
       builder: (context, snapshot) {
         final gop = snapshot.data;
         if (gop == null) return const SizedBox.shrink();
-        return Container(
-          width: double.infinity,
-          margin: const EdgeInsets.only(top: 6),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(color: const Color(0xFF2563EB).withAlpha(20), borderRadius: BorderRadius.circular(10)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Son galop · ${gop.t}', maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(10, FontWeight.w800, const Color(0xFF2563EB))),
-            const SizedBox(height: 2),
-            Text(gop.d, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(12, FontWeight.w800, const Color(0xFF2563EB))),
-            const SizedBox(height: 2),
-            Text(gop.y, style: jakarta(9.5, FontWeight.w600, const Color(0xFF2563EB))),
-          ]),
-        );
-      }
+        final gun = _gunOnce(gop.t);
+        return hCard(const Color(0xFF2563EB), 'Son galop${gun.isEmpty ? '' : ' · $gun'}', gop.d.isNotEmpty ? '${gop.t} · ${gop.d}' : gop.t, below: gop.y);
+      },
     ),
 
     if (ek.isNotEmpty)

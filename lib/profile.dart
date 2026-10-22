@@ -61,6 +61,8 @@ class _ProfileViewState extends State<ProfileView> {
   String _tab = 'k';
   bool _loaded = false;
   bool _fbusy = false;
+  final _gone = <String>{}; // silinmiş hesaplar (takip listesinde kalmış)
+  final _checked = <String>{};
   bool? _fol; // takip butonu anında değişsin (sunucu cevabını beklemeden)
   late final Stream<DocumentSnapshot<Map<String, dynamic>>> _meStream = _db.collection('users').doc(_me).snapshots();
 
@@ -73,6 +75,7 @@ class _ProfileViewState extends State<ProfileView> {
         _u = s.data();
         _loaded = true;
       });
+      _verifyFollowing();
     }));
     _subs.add(_db.collection('grants').doc(uid).snapshots().listen((s) {
       setState(() => _grant = s.data() ?? {});
@@ -94,6 +97,26 @@ class _ProfileViewState extends State<ProfileView> {
       s.cancel();
     }
     super.dispose();
+  }
+
+  // Takip listesindeki kullanıcılar gerçekten var mı kontrol et; silinmişleri sayıdan ve listeden çıkar
+  Future<void> _verifyFollowing() async {
+    final ing = ((_u?['following'] as List?) ?? const []).map((e) => e.toString()).where((u) => !_checked.contains(u)).toList();
+    if (ing.isEmpty) return;
+    _checked.addAll(ing);
+    var changed = false;
+    await Future.wait(ing.map((u) async {
+      try {
+        final p = await AuthService.loadProfile(u);
+        if (p == null) {
+          _gone.add(u);
+          changed = true;
+        }
+      } catch (_) {
+        _checked.remove(u);
+      }
+    }));
+    if (changed && mounted) setState(() {});
   }
 
   List<QueryDocumentSnapshot<Map<String, dynamic>>> get _validFollowers {
@@ -296,7 +319,7 @@ class _ProfileViewState extends State<ProfileView> {
   void _people(int tab) {
   final c = AppColors.of(context);
   final fol = _validFollowers.map((e) => e.id).toList();
-  final ing = ((_u?['following'] as List?) ?? const []).map((e) => e.toString()).toList();
+  final ing = ((_u?['following'] as List?) ?? const []).map((e) => e.toString()).where((u) => !_gone.contains(u)).toList();
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -324,7 +347,7 @@ Widget build(BuildContext context) {
 
   final p = Profile.fromMap(widget.uid, _u!);
   final mine = widget.uid == _me;
-  final following = ((_u!['following'] as List?) ?? const []).map((e) => e.toString()).toList();
+  final following = ((_u!['following'] as List?) ?? const []).map((e) => e.toString()).where((u) => !_gone.contains(u)).toList();
   final coupons = _posts.where((x) => x.coupon != null).toList();
   final shown = _tab == 'k' ? coupons : _tab == 'w' ? coupons.where((x) => postStatus(x) == 'win').toList() : coupons.where((x) => postStatus(x) == 'lose').toList();
   final score = scoreOf(widget.uid, _posts, _u!['hist'] as Map?, ((_grant['pts'] as num?)?.toDouble() ?? 0) + ((_grant['keep'] as num?)?.toDouble() ?? 0));
@@ -652,6 +675,8 @@ class _PeopleSheetState extends State<_PeopleSheet> {
     }
   }
 
+  int _cnt(List<String> l) => _ready ? l.where((u) => _prof.containsKey(u)).length : l.length;
+
   Widget _tabBtn(AppColors c, int i, String label) {
     final on = _t == i;
     return Expanded(
@@ -701,8 +726,8 @@ class _PeopleSheetState extends State<_PeopleSheet> {
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(color: c.sf, borderRadius: BorderRadius.circular(16), border: Border.all(color: c.ln)),
               child: Row(children: [
-                _tabBtn(c, 0, '${widget.followers.length} Takipçi'),
-                _tabBtn(c, 1, '${widget.following.length} Takip'),
+                _tabBtn(c, 0, '${_cnt(widget.followers)} Takipçi'),
+                _tabBtn(c, 1, '${_cnt(widget.following)} Takip'),
               ]),
             ),
           ),
