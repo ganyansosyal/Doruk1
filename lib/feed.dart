@@ -801,6 +801,7 @@ void openComments(BuildContext context, String postId, String postOwner) {
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
+    useSafeArea: true,
     backgroundColor: AppColors.of(context).bg,
     shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
     builder: (_) => _CommentsSheet(postId: postId, postOwner: postOwner),
@@ -877,6 +878,33 @@ class _CommentsSheetState extends State<_CommentsSheet> {
         }).toList());
   }
 
+  Widget _av(String uid, double size) => FutureBuilder<Profile?>(
+        future: _Profiles.of(uid),
+        initialData: _Profiles.cached(uid),
+        builder: (_, s) => Avatar(profile: s.data, size: size),
+      );
+
+  Widget _caption(AppColors c, Post p) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 10),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _av(p.uid, 36),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Flexible(child: Text(p.authorName.isEmpty ? 'Kullanıcı' : p.authorName, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(13, FontWeight.w800, c.tx))),
+              const SizedBox(width: 6),
+              Text(fmtStamp(p.ts), style: jakarta(10, FontWeight.w500, c.mu)),
+            ]),
+            const SizedBox(height: 2),
+            Text(p.text, style: jakarta(13.5, FontWeight.w600, c.tx)),
+          ]),
+        ),
+      ]),
+    );
+  }
+
   Widget _item(AppColors c, Map<String, dynamic> m, {required bool reply}) {
     final lb = ((m['likedBy'] as List?) ?? const []).map((e) => e.toString()).toList();
     final liked = lb.contains(_myUid);
@@ -885,6 +913,8 @@ class _CommentsSheetState extends State<_CommentsSheet> {
     return Padding(
       padding: EdgeInsets.only(left: reply ? 20 : 0, top: 6, bottom: 6),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _av((m['uid'] ?? '').toString(), reply ? 26 : 34),
+        const SizedBox(width: 10),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
@@ -921,39 +951,71 @@ class _CommentsSheetState extends State<_CommentsSheet> {
     );
   }
 
+  static const _emojis = ['❤️', '🙌', '🔥', '👏', '😢', '😍', '😮', '😂'];
+
+  void _emoji(String e) {
+    final t = _ctl.text;
+    final sel = _ctl.selection;
+    final i = sel.isValid ? sel.start : t.length;
+    _ctl.value = TextEditingValue(text: t.replaceRange(i, sel.isValid ? sel.end : i, e), selection: TextSelection.collapsed(offset: i + e.length));
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = AppColors.of(context);
     final mqx = MediaQuery.of(context);
-    // Klavye kapalıyken telefonun alt çubuğu kadar boşluk bırak (yazı alanı altında kalmasın)
-    final kb = mqx.viewInsets.bottom > 0 ? mqx.viewInsets.bottom : mqx.viewPadding.bottom;
+    final kb = mqx.viewInsets.bottom;
+    final bottom = kb > 0 ? kb : mqx.viewPadding.bottom;
+    // Klavye kapalıyken ekranın ~%70'i; klavye açılınca klavyenin hemen üstüne sığar (üstte boşluk kalmaz)
+    final avail = mqx.size.height - kb - mqx.viewPadding.top - 8;
+    final h = kb > 0 ? avail : (mqx.size.height * 0.7 < avail ? mqx.size.height * 0.7 : avail);
+    final hasText = _ctl.text.trim().isNotEmpty;
     return Padding(
-      padding: EdgeInsets.only(bottom: kb),
+      padding: EdgeInsets.only(bottom: bottom),
       child: SizedBox(
-        height: MediaQuery.of(context).size.height * 0.7,
+        height: h - (kb > 0 ? 0 : mqx.viewPadding.bottom),
         child: Column(children: [
           const SizedBox(height: 8),
-          Container(width: 36, height: 4, decoration: BoxDecoration(color: c.ln, borderRadius: BorderRadius.circular(2))),
-          const SizedBox(height: 8),
-          Text('Yorumlar', style: jakarta(14.5, FontWeight.w800, c.tx)),
-          const SizedBox(height: 4),
+          Container(width: 40, height: 4, decoration: BoxDecoration(color: c.ln, borderRadius: BorderRadius.circular(2))),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(48, 6, 8, 6),
+            child: Row(children: [
+              Expanded(child: Text('Yorumlar', textAlign: TextAlign.center, style: jakarta(15, FontWeight.w800, c.tx))),
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(width: 34, height: 34, decoration: BoxDecoration(color: c.sf2, shape: BoxShape.circle), child: Icon(Icons.close, size: 18, color: c.tx)),
+              ),
+            ]),
+          ),
+          Divider(height: 1, color: c.ln),
           Expanded(
             child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
               stream: _s,
               builder: (context, snap) {
                 if (!snap.hasData) return Center(child: CircularProgressIndicator(color: c.ac));
-                final all = _post(snap.data!.data() ?? {}).comments;
+                final post = _post(snap.data!.data() ?? {});
+                final all = post.comments;
                 final keys = all.map(_ckey).toSet();
                 final tops = all.where((m) => !keys.contains((m['rp'] ?? '').toString())).toList();
-                if (tops.isEmpty) return Center(child: Text('Henüz yorum yok.', style: jakarta(13, FontWeight.w600, c.mu)));
                 final rows = <Widget>[];
+                if (post.text.trim().isNotEmpty) {
+                  rows.add(_caption(c, post));
+                  rows.add(Divider(height: 1, color: c.ln));
+                }
+                if (tops.isEmpty) {
+                  rows.add(Padding(
+                    padding: const EdgeInsets.only(top: 48),
+                    child: Center(child: Text('Henüz yorum yok. İlk yorumu sen yaz!', textAlign: TextAlign.center, style: jakarta(13.5, FontWeight.w600, c.mu))),
+                  ));
+                }
                 for (final t in tops) {
                   rows.add(_item(c, t, reply: false));
                   for (final r in all.where((m) => (m['rp'] ?? '').toString() == _ckey(t))) {
                     rows.add(_item(c, r, reply: true));
                   }
                 }
-                return ListView(padding: const EdgeInsets.symmetric(horizontal: 14), children: rows);
+                return ListView(keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag, padding: const EdgeInsets.symmetric(horizontal: 14), children: rows);
               },
             ),
           ),
@@ -961,26 +1023,60 @@ class _CommentsSheetState extends State<_CommentsSheet> {
             Container(
               width: double.infinity,
               color: c.sf2,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               child: Row(children: [
                 Expanded(child: Text('@${_reply!['name']} kişisine yanıt veriyorsun', style: jakarta(11.5, FontWeight.w600, c.mu))),
                 GestureDetector(onTap: () => setState(() => _reply = null), child: Icon(Icons.close, size: 16, color: c.mu)),
               ]),
             ),
           Container(
-            padding: const EdgeInsets.fromLTRB(14, 4, 6, 8),
-            decoration: BoxDecoration(border: Border(top: BorderSide(color: c.ln))),
-            child: Row(children: [
-              Expanded(
-                child: TextField(
-                  controller: _ctl,
-                  maxLength: 500,
-                  style: jakarta(13, FontWeight.w600, c.tx),
-                  decoration: InputDecoration(border: InputBorder.none, counterText: '', hintText: _reply == null ? 'Yorum yaz...' : 'Yanıtını yaz...', hintStyle: jakarta(13, FontWeight.w500, c.mu)),
-                  onSubmitted: (_) => _add(),
+            decoration: BoxDecoration(color: c.bg, border: Border(top: BorderSide(color: c.ln))),
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                for (final e in _emojis)
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => _emoji(e),
+                    child: Padding(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4), child: Text(e, style: const TextStyle(fontSize: 24))),
+                  ),
+              ]),
+              const SizedBox(height: 6),
+              Row(children: [
+                ValueListenableBuilder<Profile?>(
+                  valueListenable: profileNotifier,
+                  builder: (_, p, __) => Avatar(profile: p, size: 36),
                 ),
-              ),
-              IconButton(onPressed: _add, icon: Icon(Icons.send_rounded, color: c.ac, size: 20)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.only(left: 14, right: 4),
+                    decoration: BoxDecoration(color: c.sf, borderRadius: BorderRadius.circular(24), border: Border.all(color: c.ln)),
+                    child: Row(children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _ctl,
+                          maxLength: 500,
+                          minLines: 1,
+                          maxLines: 3,
+                          textInputAction: TextInputAction.send,
+                          style: jakarta(13.5, FontWeight.w600, c.tx),
+                          decoration: InputDecoration(border: InputBorder.none, counterText: '', isDense: true, contentPadding: const EdgeInsets.symmetric(vertical: 12), hintText: _reply == null ? 'Yorum yaz...' : 'Yanıtını yaz...', hintStyle: jakarta(13.5, FontWeight.w500, c.mu)),
+                          onChanged: (_) => setState(() {}),
+                          onSubmitted: (_) => _add(),
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: hasText ? _add : null,
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Icon(Icons.send_rounded, color: hasText ? c.ac : c.mu.withAlpha(110), size: 22),
+                        ),
+                      ),
+                    ]),
+                  ),
+                ),
+              ]),
             ]),
           ),
         ]),
