@@ -63,6 +63,14 @@ class _Profiles {
   static final Map<String, Profile?> _v = {};
   // Daha önce yüklenmiş profil varsa hemen ver (kart ilk karede boş çizilip sonra değişmesin)
   static Profile? cached(String uid) => _v[uid];
+  // Canlı profil: fotoğraf/isim değişince kartlardaki avatar da anında güncellenir
+  static final Map<String, Stream<Profile?>> _w = {};
+  static Stream<Profile?> watch(String uid) => _w.putIfAbsent(uid, () => _db.collection('users').doc(uid).snapshots().map((d) {
+        final m = d.data();
+        final p = (d.exists && m != null) ? Profile.fromMap(uid, m) : null;
+        _v[uid] = p;
+        return p;
+      }).asBroadcastStream());
   static Future<Profile?> of(String uid) {
     if (uid.isEmpty) return Future.value(null);
     return _m.putIfAbsent(uid, () => AuthService.loadProfile(uid).then((p) {
@@ -720,8 +728,8 @@ class PostCard extends StatelessWidget {
                 decoration: BoxDecoration(color: Color.alphaBlend(c.ac.withAlpha(36), c.sf), borderRadius: BorderRadius.circular(12)),
                 child: Text('✅ Kupon tuttu · +${fmtPts(couponPts(cp).pts)} puan', style: jakarta(12.5, FontWeight.w800, c.ac)),
               ),
-            FutureBuilder<Profile?>(
-              future: _Profiles.of(p.uid),
+            StreamBuilder<Profile?>(
+              stream: _Profiles.watch(p.uid),
               initialData: _Profiles.cached(p.uid),
               builder: (context, s) {
                 final pr = s.data;
@@ -908,8 +916,8 @@ class _CommentsSheetState extends State<_CommentsSheet> {
         }).toList());
   }
 
-  Widget _av(String uid, double size) => FutureBuilder<Profile?>(
-        future: _Profiles.of(uid),
+  Widget _av(String uid, double size) => StreamBuilder<Profile?>(
+        stream: _Profiles.watch(uid),
         initialData: _Profiles.cached(uid),
         builder: (_, s) => Avatar(profile: s.data, size: size),
       );
