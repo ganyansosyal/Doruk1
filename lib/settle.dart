@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import 'auth_service.dart';
 import 'feed.dart';
+import 'ikramiye.dart';
 import 'scoring.dart';
 import 'tjk.dart';
 
@@ -48,32 +49,41 @@ class Settler {
         if (c == null) continue;
         final legs = ((c['legs'] as List?) ?? const []).whereType<Map>().map((l) => Map<String, dynamic>.from(l)).toList();
         final m = liveRes['${c['iso']}|${c['city']}'];
-        if (m == null) continue;
-        var changed = false;
-        for (final l in legs) {
-          final r = (l['r'] as num?)?.toInt();
-          if (l['res'] is List || r == null || m[r] == null) continue;
-          l['res'] = m[r];
-          changed = true;
+        if (m != null) {
+          var changed = false;
+          for (final l in legs) {
+            final r = (l['r'] as num?)?.toInt();
+            if (l['res'] is List || r == null || m[r] == null) continue;
+            l['res'] = m[r];
+            changed = true;
+          }
+          if (changed) {
+            c['legs'] = legs;
+            try {
+              await db.collection('posts').doc(p.id).update({'coupon.legs': legs});
+              final st = couponStatus(c).k;
+              if (st == 'win' || st == 'lose') {
+                final ex = DateTime.now();
+                await db.collection('notifs').doc('${st}_${p.id}').set({
+                  'to': _uid,
+                  'from': _uid,
+                  'fn': profileNotifier.value?.name ?? '',
+                  'type': st,
+                  'pid': p.ts,
+                  'pd': p.id,
+                  'ts': DateTime.now().millisecondsSinceEpoch,
+                  'exp': Timestamp.fromMillisecondsSinceEpoch(DateTime(ex.year, ex.month, ex.day + 1).millisecondsSinceEpoch),
+                  'tx': '${c['type'] ?? ''}',
+                });
+              }
+            } catch (_) {}
+          }
         }
-        if (!changed) continue;
-        c['legs'] = legs;
+        // TJK ikramiyesi kesinleşince kuponun kendi kaydına yaz: gün atlayınca kaybolmasın
         try {
-          await db.collection('posts').doc(p.id).update({'coupon.legs': legs});
-          final st = couponStatus(c).k;
-          if (st == 'win' || st == 'lose') {
-            final ex = DateTime.now();
-            await db.collection('notifs').doc('${st}_${p.id}').set({
-              'to': _uid,
-              'from': _uid,
-              'fn': profileNotifier.value?.name ?? '',
-              'type': st,
-              'pid': p.ts,
-              'pd': p.id,
-              'ts': DateTime.now().millisecondsSinceEpoch,
-              'exp': Timestamp.fromMillisecondsSinceEpoch(DateTime(ex.year, ex.month, ex.day + 1).millisecondsSinceEpoch),
-              'tx': '${c['type'] ?? ''}',
-            });
+          if (Ikr.fromMap(c['ikrD']) == null) {
+            final k = ikramiyeLive(c);
+            if (k != null && k.ready) await db.collection('posts').doc(p.id).update(ikrPatch(c, k));
           }
         } catch (_) {}
       }

@@ -6,6 +6,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'auth_service.dart';
 import 'bets.dart';
+import 'coupon_view.dart';
+import 'share_sheet.dart';
 import 'scoring.dart';
 import 'profile.dart';
 import 'settle.dart' show isAdminNotifier;
@@ -601,6 +603,20 @@ class PostCard extends StatelessWidget {
   final bool following, tracked, isMod;
   const PostCard({super.key, required this.post, required this.following, this.tracked = false, this.isMod = false});
 
+  Future<void> _shareImg(BuildContext context) async {
+    final cp = post.coupon;
+    if (cp == null) return;
+    Profile? pr = _Profiles.cached(post.uid);
+    if (pr == null) {
+      try {
+        pr = await _Profiles.of(post.uid);
+      } catch (_) {}
+    }
+    if (!context.mounted) return;
+    final nm = post.authorName.isNotEmpty ? post.authorName : (pr?.name ?? 'Kullanıcı');
+    openCouponShare(context, coupon: cp, author: nm, profile: pr, ts: post.ts, text: post.text, postId: post.id, status: postStatus(post));
+  }
+
   Future<void> _delete(BuildContext context) async {
     final c = AppColors.of(context);
     final ok = await showDialog<bool>(
@@ -639,6 +655,14 @@ class PostCard extends StatelessWidget {
         Padding(
           padding: EdgeInsets.fromLTRB(stripe != null ? 14 : 12, 12, 12, 12),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            if (cp != null && pst == 'win' && couponPts(cp).pts > 0)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(color: Color.alphaBlend(c.ac.withAlpha(36), c.sf), borderRadius: BorderRadius.circular(12)),
+                child: Text('✅ Kupon tuttu · +${fmtPts(couponPts(cp).pts)} puan', style: jakarta(12.5, FontWeight.w800, c.ac)),
+              ),
             FutureBuilder<Profile?>(
               future: _Profiles.of(p.uid),
               initialData: _Profiles.cached(p.uid),
@@ -688,12 +712,20 @@ class PostCard extends StatelessWidget {
               const SizedBox(height: 8),
               Text(p.text, style: jakarta(13.5, FontWeight.w700, c.tx)),
             ],
-            if (cp != null) ...[const SizedBox(height: 8), _CouponView(cp)],
+            if (cp != null) ...[const SizedBox(height: 8), CouponView(cp, ts: p.ts)],
             const SizedBox(height: 8),
             Row(children: [
               _act(c, liked ? Icons.favorite : Icons.favorite_border, '${p.likes}', liked ? c.red : c.mu, () { _toggleLike(p).catchError((e) { if (context.mounted) _toast(context, AuthService.errorText(e)); }); }),
               const SizedBox(width: 16),
               _act(c, Icons.chat_bubble_outline, '${p.comments.length}', c.mu, () => openComments(context, p.id, p.uid)),
+              if (cp != null) ...[
+                const SizedBox(width: 16),
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => _shareImg(context),
+                  child: Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Icon(Icons.share_outlined, size: 19, color: c.mu)),
+                ),
+              ],
               if (cp != null && !mine) ...[
                 const Spacer(),
                 GestureDetector(
@@ -735,88 +767,7 @@ class PostCard extends StatelessWidget {
       ),
     );
   }
-}/* ---------------- Kupon görünümü ---------------- */
-
-class _CouponView extends StatelessWidget {
-  final Map<String, dynamic> cp;
-  const _CouponView(this.cp);
-
-  @override
-  Widget build(BuildContext context) {
-    final c = AppColors.of(context);
-    final legs = ((cp['legs'] as List?) ?? const []).whereType<Map>().toList();
-    final ord = (cp['ord'] ?? '').toString();
-    final head = '${cp['city'] ?? ''} · ${ord.isNotEmpty && ord != '0' ? '$ord. ' : ''}${cp['type'] ?? ''}';
-    final st = couponStatus(cp).k;
-    final stCol = st == 'win' ? const Color(0xFF16A34A) : st == 'lose' ? c.red : c.mu;
-    final stTxt = st == 'win' ? 'Tuttu' : st == 'lose' ? 'Yattı' : st == 'live' ? 'Sürüyor' : 'Bekliyor';
-    final k = kolon(cp);
-    final misli = ((cp['misli'] as num?) ?? 1).toInt();
-    final bf = birimFiyat((cp['type'] ?? '').toString(), (cp['city'] ?? '').toString());
-    final slotted = legs.any((l) => l['slot'] != null);
-    return Container(
-      decoration: BoxDecoration(color: c.sf2, borderRadius: BorderRadius.circular(14), border: Border.all(color: c.ln)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
-          child: Row(children: [
-            Expanded(child: Text(head, style: jakarta(12, FontWeight.w800, c.ac))),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(color: stCol.withAlpha(30), borderRadius: BorderRadius.circular(8)),
-              child: Text(stTxt, style: jakarta(10, FontWeight.w800, stCol)),
-            ),
-          ]),
-        ),
-        if (legs.isNotEmpty)
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              for (final l in legs)
-                Container(
-                  width: 50,
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  decoration: BoxDecoration(border: Border(top: BorderSide(color: c.ln))),
-                  child: Column(children: [
-                    Text(slotted ? '${((l['slot'] as num?) ?? 0).toInt() + 1}. At' : '${l['r'] ?? ''}. Koşu', style: jakarta(9.5, FontWeight.w800, c.tx)),
-                    Text('${l['t'] ?? ''}', style: jakarta(9, FontWeight.w500, c.mu)),
-                    const SizedBox(height: 2),
-                    for (final n in ((l['picks'] as List?) ?? const []))
-                      Builder(builder: (_) {
-                        final r = legSt(cp, l);
-                        final res = (l['res'] as List?)?.whereType<num>().map((e) => e.toInt()).toList();
-                        final hit = r != 'p' && res != null ? res.take(cp['rule'] == 'pl2' ? 3 : (cp['rule'] == 'place' || cp['rule'] == 'gp') ? 2 : 1).contains(n) : false;
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 3),
-                          width: 26,
-                          height: 22,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: hit ? const Color(0xFF16A34A) : c.sf,
-                            borderRadius: BorderRadius.circular(11),
-                            border: Border.all(color: hit ? const Color(0xFF16A34A) : c.ln),
-                          ),
-                          child: Text('$n', style: jakarta(11, FontWeight.w800, hit ? Colors.white : c.tx)),
-                        );
-                      }),
-                  ]),
-                ),
-            ]),
-          ),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(10, 6, 10, 8),
-          decoration: BoxDecoration(border: Border(top: BorderSide(color: c.ln))),
-          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Flexible(child: Text('$k kolon × ${money(bf)} × $misli misli', style: jakarta(11, FontWeight.w700, c.ac))),
-            Text(money(k * bf * misli), style: jakarta(12.5, FontWeight.w800, c.tx)),
-          ]),
-        ),
-      ]),
-    );
-  }
 }
-
 /* ---------------- Yorumlar ---------------- */
 
 void openComments(BuildContext context, String postId, String postOwner) {

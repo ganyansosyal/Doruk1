@@ -49,12 +49,12 @@ class AppColors {
       Theme.of(context).brightness == Brightness.dark ? dark : light;
 }
 
-/// Kaydırma sonunda yaylanma / uzama efekti yok.
+/// Kaydırma sonunda hafif yaylanma (iOS tarzı) var.
 /// Performans ölçümü: logoya uzun basınca açılır/kapanır (ekrandaki çubuklar kare süresini gösterir)
 final ValueNotifier<bool> perfOverlay = ValueNotifier<bool>(false);
 
 /// Parmak bırakınca kayma daha uzun sürsün (tarayıcıdaki ataletli kaydırma gibi)
-class GlideScrollPhysics extends ClampingScrollPhysics {
+class GlideScrollPhysics extends BouncingScrollPhysics {
   const GlideScrollPhysics({super.parent});
   @override
   GlideScrollPhysics applyTo(ScrollPhysics? ancestor) => GlideScrollPhysics(parent: buildParent(ancestor));

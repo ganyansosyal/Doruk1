@@ -49,6 +49,32 @@ Set<String> _setPairs(dynamic sets) {
   return out;
 }
 
+/// Kuponun bu ayağı için kayıtlı / canlı sonuç (yoksa null).
+List<int>? legResOf(Map c, Map l) => _resOfC(c, l);
+
+/// Bu ayakta kuponun kuralına göre "tutan" numaralar.
+List<int> legTop(Map c, Map l) {
+  final res = _resOfC(c, l);
+  if (res == null || res.isEmpty) return const [];
+  final vir = c['vir'];
+  if (vir is num && vir > 0) return res.take(vir.toInt()).toList();
+  switch (ruleOf(c)) {
+    case 'win':
+      return [res[0]];
+    case 'place':
+    case 'gp':
+    case 'any2':
+      return res.take(2).toList();
+    case 'slots':
+      final i = (l['slot'] as num?)?.toInt() ?? 0;
+      return i < res.length ? [res[i]] : const [];
+    case 'any4':
+      return res.take(4).toList();
+    default:
+      return res.take(3).toList();
+  }
+}
+
 /// 'p' bekliyor · 'h' tuttu · 'm' kaçtı
 String legSt(Map c, Map l) {
   final res = _resOfC(c, l);
