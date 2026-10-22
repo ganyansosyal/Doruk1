@@ -23,7 +23,7 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
   void initState() {
     super.initState();
     _tick = createTicker(_onTick)..start();
-    Preload.start().timeout(const Duration(seconds: 9), onTimeout: () {}).whenComplete(() => _finished = true);
+    Preload.start().timeout(const Duration(seconds: 4), onTimeout: () {}).whenComplete(() => _finished = true);
   }
 
   void _onTick(Duration t) {
