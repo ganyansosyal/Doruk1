@@ -259,10 +259,9 @@ class CouponView extends StatelessWidget {
       ]),
     );
 
-    Widget ikBar = const SizedBox.shrink();
-    if (ik != null) {
+    Widget ikBarFor(Ikr ik) {
       final wait = !ik.ready;
-      ikBar = Container(
+      return Container(
         width: double.infinity,
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
         decoration: BoxDecoration(gradient: LinearGradient(colors: [c.ac, Color.alphaBlend(Colors.white.withAlpha(60), c.ac)])),
@@ -285,6 +284,18 @@ class CouponView extends StatelessWidget {
             ]),
         ]),
       );
+    }
+
+    Widget ikBar = const SizedBox.shrink();
+    if (ik != null) {
+      // Geçmiş günün kuponu: o günün sonuçları TJK'dan çekilip ikramiye gösterilir (bir kez, sonra hazır kalır)
+      ikBar = (!ik.ready && ikramiyeFetchGerek(cp))
+          ? FutureBuilder<Ikr?>(
+              future: ikramiyeFetch(cp),
+              initialData: null,
+              builder: (_, snap) => ikBarFor(snap.data != null && snap.data!.ready ? snap.data! : ik),
+            )
+          : ikBarFor(ik);
     }
 
     return Container(

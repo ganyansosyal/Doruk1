@@ -1,8 +1,11 @@
+import 'dart:convert';
+
 import 'scoring.dart';
 import 'tjk.dart';
 
 /// Web'deki ikramiye kutusunun (03-feed.js) Dart karşılığı.
-/// Hesaplanan ikramiye kuponun kendi kaydına (coupon.ikrD) yazılır: gün atlayınca da kaybolmaz.
+/// - Hesaplanan ikramiye kuponun kendi kaydına (coupon.ikrD) yazılır: gün atlayınca da kaybolmaz.
+/// - Kuponun günü ekranda yüklü değilse (geçmiş gün) o günün sonuçları TJK'dan ayrıca çekilir.
 
 final _tutRe = RegExp(r',\d{1,2}$');
 bool _valid(String v) => _tutRe.hasMatch(v);
@@ -36,17 +39,25 @@ class Ikr {
   }
 }
 
+/// Bir günün (bir hipodromun) programı ve sonuçları: bugün TjkStore'dan, geçmiş gün TJK'dan.
+class _Day {
+  final List<Race> races;
+  final Map<int, RaceResult> res;
+  const _Day(this.races, this.res);
+  List<Bahis> bh(int no) => res[no]?.bahis ?? const <Bahis>[];
+}
+
 List<Map> _legs(Map c) => ((c['legs'] as List?) ?? const []).whereType<Map>().toList();
 String _city(Map c) => (c['city'] ?? '').toString();
+String _iso(Map c) => (c['iso'] ?? '').toString();
 int _r(Map l) => (l['r'] as num?)?.toInt() ?? 0;
 String _fam(Map c) => (c['type'] ?? '').toString().replaceAll(RegExp(r'\s*\((Tek kolon|Virgüllü)\)\s*$', caseSensitive: false), '').trim();
-List<Bahis> _bh(String city, int no) => TjkStore.i.results[city]?[no]?.bahis ?? const <Bahis>[];
 
-Bahis? _odeme(String city, int ord, int n, String tur) {
+Bahis? _odeme(_Day d, int ord, int n, String tur) {
   final pre = ord > 0 ? '$ord\\. ' : '';
   final re = RegExp('^$pre$n\'li $tur\$');
-  for (final k in TjkStore.i.races(city)) {
-    for (final b in _bh(city, k.no)) {
+  for (final k in d.races) {
+    for (final b in d.bh(k.no)) {
       if (re.hasMatch(b.tur)) return b;
     }
   }
@@ -84,12 +95,11 @@ bool _applies(Map c, List<Map> legs) {
   return true;
 }
 
-Ikr? _multi(Map c, List<Map> legs) {
-  final city = _city(c);
+Ikr? _multi(Map c, List<Map> legs, _Day d) {
   final cols = legs.length;
   var ord = (c['ord'] as num?)?.toInt() ?? 0;
   final r0 = _r(legs[0]);
-  for (final k in TjkStore.i.races(city)) {
+  for (final k in d.races) {
     if (k.no != r0) continue;
     for (final s in k.baslar) {
       if (s.tur == 'GANYAN' && s.n == cols) {
@@ -98,20 +108,20 @@ Ikr? _multi(Map c, List<Map> legs) {
       }
     }
   }
-  var od = _odeme(city, ord, cols, 'Ganyan');
-  if (od == null && c['ord'] == null) od = _odeme(city, 0, cols, 'Ganyan');
+  var od = _odeme(d, ord, cols, 'Ganyan');
+  if (od == null && c['ord'] == null) od = _odeme(d, 0, cols, 'Ganyan');
   final ad = _fam(c);
   if (od != null && _valid(od.tutar)) return Ikr(ad, [(d: '', t: od.tutar)]);
   return Ikr(ad, const []);
 }
 
-Ikr? _tek(Map c, List<Map> legs) {
+Ikr? _tek(Map c, List<Map> legs, _Day d) {
   final ad = _fam(c);
   final tur = _tekMap[ad];
   if (tur == null) return null;
   final r0 = _r(legs[0]);
   final picks = ((legs[0]['picks'] as List?) ?? const []).whereType<num>().map((e) => e.toInt()).toList();
-  final bh = _bh(_city(c), r0);
+  final bh = d.bh(r0);
   final items = <IkrItem>[];
   for (final tr in tur) {
     var es = bh.where((x) => x.tur == tr && _valid(x.tutar)).toList();
@@ -130,14 +140,13 @@ Ikr? _tek(Map c, List<Map> legs) {
   return Ikr(ad, items);
 }
 
-Ikr? _cokAyak(Map c, List<Map> legs) {
+Ikr? _cokAyak(Map c, List<Map> legs, _Day d) {
   final type = (c['type'] ?? '').toString();
   final isC = type == 'Çifte Bahis';
-  final city = _city(c);
   var ad = isC ? 'Çifte Bahis' : "7'li Plase";
   var ord = (c['ord'] as num?)?.toInt() ?? 0;
   final r0 = _r(legs[0]);
-  for (final k in TjkStore.i.races(city)) {
+  for (final k in d.races) {
     if (k.no != r0) continue;
     for (final s in k.baslar) {
       if (isC ? s.tur == 'CIFTE' : (s.tur == 'PLASE' && s.n == 7)) {
@@ -150,8 +159,8 @@ Ikr? _cokAyak(Map c, List<Map> legs) {
   if (isC) {
     final cifteRe = RegExp(r'^\d+\. Çifte$');
     final all = <Bahis>[];
-    for (final k in TjkStore.i.races(city)) {
-      for (final x in _bh(city, k.no)) {
+    for (final k in d.races) {
+      for (final x in d.bh(k.no)) {
         if (cifteRe.hasMatch(x.tur) && _valid(x.tutar) && !all.any((y) => y.tur == x.tur)) all.add(x);
       }
     }
@@ -167,24 +176,82 @@ Ikr? _cokAyak(Map c, List<Map> legs) {
     if (od != null && all.length > 1) ad = od.tur;
     if (ord > 0 && !(od != null && cifteRe.hasMatch(od.tur))) ad = '$ord. Çifte';
   } else {
-    od = _odeme(city, ord, 7, 'Plase') ?? (c['ord'] == null ? _odeme(city, 0, 7, 'Plase') : null);
+    od = _odeme(d, ord, 7, 'Plase') ?? (c['ord'] == null ? _odeme(d, 0, 7, 'Plase') : null);
   }
   if (od != null && _valid(od.tutar)) return Ikr(ad, [(d: '', t: od.tutar)]);
   return Ikr(ad, const []);
 }
 
-/// Bugünün (TjkStore'da yüklü günün) verisinden hesapla. Gün yüklü değilse null.
-Ikr? ikramiyeLive(Map c) {
-  if ((c['iso'] ?? '').toString() != TjkStore.i.iso) return null;
+/// Verilen günün verisiyle ikramiyeyi hesapla. null → ikramiye kutusu bu kupon için yok / ayaklar bitmedi.
+Ikr? _calc(Map c, _Day d) {
   final legs = _legs(c);
   if (!_applies(c, legs)) return null;
   if (!legs.every((l) => legSt(c, l) != 'p')) return null; // tüm ayaklar bitmeden gösterme
-  if (_isMulti(c, legs)) return _multi(c, legs);
-  if (_isCokAyak(c, legs)) return _cokAyak(c, legs);
-  return _tek(c, legs);
+  if (_isMulti(c, legs)) return _multi(c, legs, d);
+  if (_isCokAyak(c, legs)) return _cokAyak(c, legs, d);
+  return _tek(c, legs, d);
 }
 
-/// Ekranda gösterilecek ikramiye: önce kuponda saklı olan, yoksa canlı hesap, yoksa "bekleniyor".
+/// Bugünün (TjkStore'da yüklü günün) verisinden hesapla. Gün yüklü değilse null.
+Ikr? ikramiyeLive(Map c) {
+  if (_iso(c) != TjkStore.i.iso) return null;
+  final city = _city(c);
+  if (city.isEmpty) return null;
+  return _calc(c, _Day(TjkStore.i.races(city), TjkStore.i.results[city] ?? const <int, RaceResult>{}));
+}
+
+// ---- Geçmiş gün: o günün sonuçlarını TJK'dan ayrıca çek (ekrandaki günü bozmaz) ----
+final Map<String, Future<_Day?>> _dayMem = {};
+final Map<String, Future<Ikr?>> _fetchMem = {};
+final Map<String, Ikr> _fetched = {}; // çekilip hesaplananlar: sonraki çizimlerde anında gelsin
+
+String _key(Map c) => jsonEncode([_iso(c), _city(c), c['type'], c['ord'], _legs(c).map((l) => [l['r'], l['picks']]).toList()]);
+
+Future<_Day?> _loadDay(String iso, String city) {
+  final k = '$iso|$city';
+  return _dayMem.putIfAbsent(k, () async {
+    try {
+      final cs = await getCities(iso);
+      City? ct;
+      for (final x in cs) {
+        if (x.name == city) ct = x;
+      }
+      if (ct == null) return null;
+      final rs = await getProgram(ct, iso);
+      final res = await getResults(ct, iso, rs);
+      return _Day(rs, res);
+    } catch (_) {
+      _dayMem.remove(k);
+      return null;
+    }
+  });
+}
+
+/// Kuponun günü ekranda yüklü değilse o günün sonuçlarını çekip ikramiyeyi hesaplar (aynı kupon için tek kez).
+Future<Ikr?> ikramiyeFetch(Map c) {
+  final iso = _iso(c), city = _city(c);
+  if (iso.isEmpty || city.isEmpty) return Future.value(null);
+  return _fetchMem.putIfAbsent(_key(c), () async {
+    final d = await _loadDay(iso, city);
+    if (d == null) {
+      _fetchMem.remove(_key(c));
+      return null;
+    }
+    final k = _calc(c, d);
+    if (k != null && k.ready) _fetched[_key(c)] = k;
+    return k;
+  });
+}
+
+/// Geçmiş günden çekilmesi gereken kupon mu? (günü yüklü değil, kayıtlı ikramiye yok, ayaklar bitmiş)
+bool ikramiyeFetchGerek(Map c) {
+  if (_iso(c).isEmpty || _iso(c) == TjkStore.i.iso) return false;
+  if (Ikr.fromMap(c['ikrD']) != null || _fetched.containsKey(_key(c))) return false;
+  final legs = _legs(c);
+  return _applies(c, legs) && legs.every((l) => legSt(c, l) != 'p');
+}
+
+/// Ekranda gösterilecek ikramiye: önce kuponda saklı olan, sonra çekilmiş/canlı hesap, yoksa "bekleniyor".
 /// null → ikramiye kutusu gösterilmez.
 Ikr? ikramiyeOf(Map c) {
   final legs = _legs(c);
@@ -197,6 +264,8 @@ Ikr? ikramiyeOf(Map c) {
   if (_valid(b)) return Ikr(ad, [(d: '', t: b)]);
   if (!legs.every((l) => legSt(c, l) != 'p')) return null;
   if (!_applies(c, legs)) return null;
+  final f = _fetched[_key(c)];
+  if (f != null) return f;
   final live = ikramiyeLive(c);
   return live ?? Ikr(ad, const []);
 }

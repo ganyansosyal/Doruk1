@@ -349,7 +349,7 @@ Widget build(BuildContext context) {
   final mine = widget.uid == _me;
   final following = ((_u!['following'] as List?) ?? const []).map((e) => e.toString()).where((u) => !_gone.contains(u)).toList();
   final coupons = _posts.where((x) => x.coupon != null).toList();
-  final shown = _tab == 'k' ? coupons : _tab == 'w' ? coupons.where((x) => postStatus(x) == 'win').toList() : coupons.where((x) => postStatus(x) == 'lose').toList();
+  final shown = _tab == 'k' ? coupons.where((x) => postStatus(x) != 'win').toList() : _tab == 'w' ? coupons.where((x) => postStatus(x) == 'win').toList() : coupons.where((x) => postStatus(x) == 'lose').toList();
   final score = scoreOf(widget.uid, _posts, _u!['hist'] as Map?, ((_grant['pts'] as num?)?.toDouble() ?? 0) + ((_grant['keep'] as num?)?.toDouble() ?? 0));
   final fl = _validFollowers;
   final isAdmin = _u!['isAdmin'] == true;

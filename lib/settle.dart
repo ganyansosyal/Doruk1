@@ -82,7 +82,8 @@ class Settler {
         // TJK ikramiyesi kesinleşince kuponun kendi kaydına yaz: gün atlayınca kaybolmasın
         try {
           if (Ikr.fromMap(c['ikrD']) == null) {
-            final k = ikramiyeLive(c);
+            // Bugünün kuponu: yüklü veriden; geçmiş günün kuponu: o günün sonuçları TJK'dan çekilerek
+            final k = ikramiyeLive(c) ?? (ikramiyeFetchGerek(c) ? await ikramiyeFetch(c) : null);
             if (k != null && k.ready) await db.collection('posts').doc(p.id).update(ikrPatch(c, k));
           }
         } catch (_) {}
