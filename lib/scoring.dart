@@ -49,24 +49,6 @@ Set<String> _setPairs(dynamic sets) {
   return out;
 }
 
-Set<String> _setQuads(dynamic sets) {
-  final lists = _maps(sets).map((m) => _ints(m['p'])).toList();
-  final out = <String>{};
-  if (lists.length < 4) return out;
-  void rec(int i, List<int> cur) {
-    if (i == lists.length) {
-      out.add(([...cur]..sort()).join('-'));
-      return;
-    }
-    for (final n in lists[i]) {
-      if (!cur.contains(n)) rec(i + 1, [...cur, n]);
-    }
-  }
-
-  rec(0, []);
-  return out;
-}
-
 /// Kuponun bu ayağı için kayıtlı / canlı sonuç (yoksa null).
 List<int>? legResOf(Map c, Map l) => _resOfC(c, l);
 
@@ -122,11 +104,7 @@ String legSt(Map c, Map l) {
     }
   } else if (rule == 'any4') {
     final top = res.take(4).toList();
-    if (l['sets'] != null) {
-      hit = top.length == 4 && _setQuads(l['sets']).contains(([...top]..sort()).join('-'));
-    } else {
-      hit = top.length == 4 && top.every(picks.contains);
-    }
+    hit = top.length == 4 && top.every(picks.contains);
   } else {
     final top = res.take(p).toList();
     if (l['sets'] != null) {

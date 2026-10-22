@@ -210,11 +210,7 @@ class _PredictPageState extends State<PredictPage> {
         _misli = 1;
       }
       _autoFix();
-      final onceki = _race;
       _goFirstLeg();
-      if (_t.mode == 'race' && _race != onceki && oyunKey[_t.k] != null && oyunKey[_t.k] != 'g1') {
-        _toast('${_t.name} $_race. koşuda oynanıyor, oraya geçildi.');
-      }
     });
   }
 
@@ -553,14 +549,6 @@ Widget build(BuildContext context) {
               ),
           ]),
         ],
-        if (_t.mode == 'race' && !oyunMusait(_t, _city, _race))
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Text(
-              '${_t.name} bu koşuda oynanmıyor${(tekKosular(_t, _city, admin: _admin) ?? []).isNotEmpty ? ' · oynanan: ${fmtKos(tekKosular(_t, _city, admin: _admin)!)}' : ''}',
-              style: jakarta(11.5, FontWeight.w800, c.red),
-            ),
-          ),
         if (_t.hint.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Text(_t.hint, style: jakarta(11, FontWeight.w500, c.mu))),
         const SizedBox(height: 8),
         if (race != null) for (final h in race.atlar) RepaintBoundary(child: _horseCard(c, h)),
@@ -737,7 +725,7 @@ void _pickType() {
                           Expanded(
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Text('${t.si == 1 ? '2. ' : t.si == 0 && legStarts(t, _city).length > 1 ? '1. ' : ''}${t.name}', style: jakarta(13, FontWeight.w800, c.tx)),
-                              Text(m.ok ? [if (t.desc.isNotEmpty) t.desc else t.sub, if (tekSub(t, _city, admin: _admin) != null) tekSub(t, _city, admin: _admin)!].join(' · ') : m.why, style: jakarta(11, FontWeight.w500, c.mu)),
+                              Text(m.ok ? (t.desc.isNotEmpty ? t.desc : t.sub) : m.why, style: jakarta(11, FontWeight.w500, c.mu)),
                             ]),
                           ),
                           Text(money(birimFiyat(t.name, _city)), style: jakarta(11, FontWeight.w700, c.ac)),
@@ -884,23 +872,6 @@ Widget _raceCard(AppColors c, Race r) {
       Text('${r.atlar.length} at', style: jakarta(11, FontWeight.w500, c.mu)),
       if (done)
         Padding(padding: const EdgeInsets.only(top: 4), child: Text('Koşu başladı / bitti · seçime kapalı', style: jakarta(10.5, FontWeight.w800, c.red))),
-      // TJK'daki gibi: "1. ÇİFTE, 7'Lİ PLASE, ... bu koşudan başlar, GANYAN, İKİLİ, ..."
-      Builder(builder: (_) {
-        final bs = baslarYazi(_city, r.no);
-        if (bs.isEmpty) return const SizedBox.shrink();
-        return Padding(padding: const EdgeInsets.only(top: 8), child: Text(bs, style: jakarta(13, FontWeight.w700, c.tx)));
-      }),
-      Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          tilePadding: EdgeInsets.zero,
-          childrenPadding: const EdgeInsets.only(bottom: 4),
-          dense: true,
-          visualDensity: const VisualDensity(vertical: -3),
-          title: Text('ⓘ ${_t.name} nasıl oynanır?', style: jakarta(13, FontWeight.w700, c.tx)),
-          children: [Align(alignment: Alignment.centerLeft, child: Text(kuralMetni(_t, _city), style: jakarta(12, FontWeight.w500, c.mu)))],
-        ),
-      ),
     ]),
   );
 }

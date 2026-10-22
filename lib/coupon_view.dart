@@ -114,7 +114,7 @@ class CouponView extends StatelessWidget {
     final misli = ((cp['misli'] as num?) ?? 1).toInt();
     final bf = birimFiyat((cp['type'] ?? '').toString(), (cp['city'] ?? '').toString());
     final dense = cols >= 5;
-    const wide = false; // numaralar her zaman alt alta
+    final wide = cols <= 2;
     final sts = [for (final l in legs) legSt(cp, l)];
     final settled = sts.any((x) => x != 'p');
     final res0 = legs.isNotEmpty ? legResOf(cp, legs.first) : null;
@@ -139,65 +139,6 @@ class CouponView extends StatelessWidget {
           ],
         ]),
       );
-    } else if (cols == 1 && _maps(legs[0]['sets']).length >= 2) {
-      // İkili / Plase İkili / Tabela: "1. AT", "2. AT"… sütunları ayrı ayrı, seçilen atlar altlarında
-      final l = legs[0];
-      final sets0 = _maps(l['sets']);
-      final multi = sets0.length >= 2;
-      // sekmeli (1. AT, 2. AT…) kuponda sütun başına liste; virgüllü / tek kolonda tek liste
-      final lists = multi
-          ? [for (final m in sets0) ((m['p'] as List?) ?? const []).whereType<num>().map((e) => e.toInt()).toList()]
-          : [((l['picks'] as List?) ?? const []).whereType<num>().map((e) => e.toInt()).toList()];
-      final top = legTop(cp, l);
-      final pend = sts[0] == 'p';
-      final hit = sts[0] == 'h';
-      String chipSt(int n) {
-        if (pend) return 'p';
-        if (top.contains(n)) return (rule == 'gp' && res0 != null && res0.isNotEmpty && res0.first != n) ? 'pl' : 'win';
-        return hit ? 'dim' : 'miss';
-      }
-
-      Widget col(int i) {
-        final pk = lists[i];
-        return Expanded(
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            if (multi)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 7),
-                decoration: BoxDecoration(color: c.ln.withAlpha(90), border: Border(top: BorderSide(color: c.ln))),
-                child: Center(child: Text('${i + 1}. AT', style: jakarta(lists.length > 2 ? 11 : 12, FontWeight.w800, c.tx))),
-              ),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              child: pk.isEmpty
-                  ? Text('—', style: jakarta(13, FontWeight.w700, c.mu))
-                  : Column(mainAxisSize: MainAxisSize.min, children: [
-                      for (final n in pk) Padding(padding: const EdgeInsets.only(bottom: 6), child: _chip(c, n, chipSt(n), lists.length > 2 ? 26 : 28)),
-                    ]),
-            ),
-            if (!pend)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(border: Border(top: BorderSide(color: c.ln))),
-                child: Center(child: _mark(c, sts[0])),
-              ),
-          ]),
-        );
-      }
-
-      body = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        _head(c, l, sts[0], false, false),
-        IntrinsicHeight(
-          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            for (var i = 0; i < lists.length; i++) ...[
-              if (i > 0) VerticalDivider(width: 1, thickness: 1, color: c.ln),
-              col(i),
-            ],
-          ]),
-        ),
-      ]);
     } else if (cols > 0) {
       final chipS = dense ? 24.0 : 28.0;
       body = Table(

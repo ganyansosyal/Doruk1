@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'theme.dart';
 import 'auth_page.dart';
 import 'preload.dart';
@@ -12,41 +11,21 @@ class SplashPage extends StatefulWidget {
 }
 
 class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateMixin {
-  // Gösterilen değer: gerçek yükleme ilerlemesine (Preload.progress) yumuşakça yaklaşır.
-  // Bir adım uzun sürse bile çubuk bir sonraki adıma doğru yavaşça akar, %90'da takılı kalmaz.
-  final ValueNotifier<double> _shown = ValueNotifier(0.0);
-  late final Ticker _tick;
-  Duration _last = Duration.zero;
-  bool _finished = false, _leaving = false;
+  late final AnimationController _ctl =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 1800));
 
   @override
   void initState() {
     super.initState();
-    _tick = createTicker(_onTick)..start();
-    Preload.start().timeout(const Duration(seconds: 4), onTimeout: () {}).whenComplete(() => _finished = true);
+    _go();
   }
 
-  void _onTick(Duration t) {
-    final dt = ((t - _last).inMicroseconds / 1e6).clamp(0.0, 0.05);
-    _last = t;
-    final real = Preload.progress.value;
-    // bitti: hızlıca %100'e; bitmediyse: gerçek ilerleme + küçük pay (adım arası akış), en çok %97
-    final limit = _finished ? 1.0 : (real + 0.10).clamp(0.0, 0.97);
-    var v = _shown.value;
-    if (v < limit) {
-      final hiz = _finished ? 1.6 : ((limit - v) * 1.4 + 0.02);
-      v = (v + hiz * dt).clamp(0.0, limit);
-      _shown.value = v;
-    }
-    if (_finished && v >= 1.0 && !_leaving) {
-      _leaving = true;
-      _tick.stop();
-      _leave();
-    }
-  }
-
-  Future<void> _leave() async {
-    await Future.delayed(const Duration(milliseconds: 120));
+  // Çubuk %90'a kadar dolar; akış verisi hazır olunca %100 olup kapanır (en geç 9 sn)
+  Future<void> _go() async {
+    await _ctl.animateTo(0.9, duration: const Duration(milliseconds: 1500), curve: Curves.easeOut);
+    await Preload.start().timeout(const Duration(seconds: 9), onTimeout: () {});
+    if (!mounted) return;
+    await _ctl.animateTo(1.0, duration: const Duration(milliseconds: 250));
     if (!mounted) return;
     Navigator.of(context).pushReplacement(PageRouteBuilder(
       transitionDuration: const Duration(milliseconds: 400),
@@ -57,8 +36,7 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
 
   @override
   void dispose() {
-    _tick.dispose();
-    _shown.dispose();
+    _ctl.dispose();
     super.dispose();
   }
 
@@ -119,9 +97,9 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
                     ),
                   ),
                   const SizedBox(height: 26),
-                  ValueListenableBuilder<double>(
-                    valueListenable: _shown,
-                    builder: (_, v, __) => Column(
+                  AnimatedBuilder(
+                    animation: _ctl,
+                    builder: (_, __) => Column(
                       children: [
                         Container(
                           width: 230,
@@ -135,7 +113,7 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
                           child: Align(
                             alignment: Alignment.centerLeft,
                             child: FractionallySizedBox(
-                              widthFactor: v.clamp(0.02, 1.0),
+                              widthFactor: _ctl.value.clamp(0.02, 1.0),
                               child: Container(
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(10),
@@ -154,7 +132,7 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
                             Text('Yükleniyor…',
                                 style: jakarta(13, FontWeight.w700, const Color(0xE0FFFFFF), ls: .3)),
                             const SizedBox(width: 8),
-                            Text('%${(v * 100).round()}',
+                            Text('%${(_ctl.value * 100).round()}',
                                 style: jakarta(13, FontWeight.w800, const Color(0xFFFFD66B))),
                           ],
                         ),
