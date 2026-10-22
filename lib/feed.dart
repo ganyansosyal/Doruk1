@@ -14,7 +14,7 @@ import 'profile.dart';
 import 'settle.dart' show isAdminNotifier;
 import 'live.dart';
 import 'theme.dart';
-import 'tjk.dart' show TjkStore, Race, isoToday;
+import 'tjk.dart' show TjkStore, Race, isoToday, liveResTick;
 
 FirebaseFirestore get _db => FirebaseFirestore.instance;
 String get _myUid => profileNotifier.value?.uid ?? '';
@@ -194,6 +194,7 @@ class _FeedPageState extends State<FeedPage> {
   void initState() {
     super.initState();
     feedScrollTop.addListener(_toTop);
+    liveResTick.addListener(_resTick);
     TjkStore.i.ensureLoaded();
     // Eski (önbellek) paylaşımlar hiç gösterilmesin: önce sunucudan taze veriyi al, sonra akışı aç.
     // İnternet yoksa/6 sn'de gelmezse önbellekle devam eder.
@@ -237,8 +238,13 @@ class _FeedPageState extends State<FeedPage> {
     _subs.add(_db.collection('mods').limit(100).snapshots().listen((s) { _mods = s.docs.map((d) => d.id).toSet(); bump(); }, onError: (_) {}));
   }
 
+  void _resTick() {
+    if (mounted) setState(() {}); // kupon sonucu geldi: Sonuçlar sekmesine girmeden akış güncellensin
+  }
+
   @override
   void dispose() {
+    liveResTick.removeListener(_resTick);
     feedScrollTop.removeListener(_toTop);
     _scroll.dispose();
     _bumpT?.cancel();

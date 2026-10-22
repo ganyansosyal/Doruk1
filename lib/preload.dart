@@ -42,6 +42,20 @@ class Preload {
       mods = (await fm).docs.map((d) => d.id).toSet();
       me = (await fme).data();
       uid = u.uid;
+      // Bekleyen kuponların (herkesin) sonuçları splash sırasında çekilsin: akış açılınca durumlar hazır olur
+      try {
+        final today = isoToday(), keys = <String>{};
+        for (final d in (await fp).docs) {
+          final c = d.data()['coupon'];
+          if (c is! Map) continue;
+          final legs = ((c['legs'] as List?) ?? const []).whereType<Map>();
+          if (!legs.any((l) => l['res'] is! List && l['win'] is! num)) continue;
+          final iso = '${c['iso'] ?? ''}', city = '${c['city'] ?? ''}';
+          if (iso.isEmpty || city.isEmpty || iso.compareTo(today) > 0) continue;
+          keys.add('$iso|$city');
+        }
+        await Future.wait(keys.map((k) => pullLiveRes(k.substring(0, k.indexOf('|')), k.substring(k.indexOf('|') + 1)))).timeout(const Duration(seconds: 4), onTimeout: () => const []);
+      } catch (_) {}
       // Avatar fotoğraflarını splash sırasında çöz: akış açılınca tahminciler satırı boş/harf görünmesin
       final photos = <String>[for (final d in users) (d.data()['photo'] ?? '').toString()].where((x) => x.isNotEmpty).take(60);
       await warmAvatars(photos, const [48, 36]).timeout(const Duration(seconds: 3), onTimeout: () {});

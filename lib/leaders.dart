@@ -8,6 +8,7 @@ import 'feed.dart';
 import 'profile.dart';
 import 'scoring.dart';
 import 'theme.dart';
+import 'tjk.dart' show liveResTick;
 
 class LeadersPage extends StatefulWidget {
   const LeadersPage({super.key});
@@ -53,6 +54,7 @@ class _LeadersPageState extends State<LeadersPage> {
   @override
   void initState() {
     super.initState();
+    liveResTick.addListener(_touch);
     final db = FirebaseFirestore.instance;
     void err(Object e) => setState(() => _err = AuthService.errorText(e));
     _subs.add(db.collection('users').limit(300).snapshots().listen((s) {
@@ -74,6 +76,7 @@ class _LeadersPageState extends State<LeadersPage> {
 
   @override
   void dispose() {
+    liveResTick.removeListener(_touch);
     _deb?.cancel();
     for (final s in _subs) {
       s.cancel();

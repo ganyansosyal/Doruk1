@@ -10,6 +10,7 @@ import 'feed.dart';
 import 'scoring.dart';
 import 'shell.dart' show IconBox;
 import 'theme.dart';
+import 'tjk.dart' show liveResTick;
 
 FirebaseFirestore get _db => FirebaseFirestore.instance;
 String get _me => profileNotifier.value?.uid ?? '';
@@ -69,6 +70,7 @@ class _ProfileViewState extends State<ProfileView> {
   @override
   void initState() {
     super.initState();
+    liveResTick.addListener(_resTick);
     final uid = widget.uid;
     _subs.add(_db.collection('users').doc(uid).snapshots().listen((s) {
       setState(() {
@@ -91,8 +93,13 @@ class _ProfileViewState extends State<ProfileView> {
     ));
   }
 
+  void _resTick() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    liveResTick.removeListener(_resTick);
     for (final s in _subs) {
       s.cancel();
     }

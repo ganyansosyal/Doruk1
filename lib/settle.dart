@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show WidgetsBinding, WidgetsBindingObserver, AppLifecycleState;
 
 import 'auth_service.dart';
 import 'feed.dart';
@@ -11,12 +12,49 @@ import 'tjk.dart';
 
 final ValueNotifier<bool> isAdminNotifier = ValueNotifier(false);
 
+class _Resume with WidgetsBindingObserver {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) Settler.poll(force: true);
+  }
+}
+
 /// Arka planda: yönetici bilgisini izler, benim kuponlarımın sonuçlarını Firestore'a işler.
+/// Sonuçlar sekmesine girilmesi gerekmez: bekleyen kuponların koşu sonuçları kendi zamanlayıcısıyla çekilir.
 class Settler {
-  static StreamSubscription? _a, _b;
-  static List<Post> _mine = [];
-  static bool _busy = false;
+  static StreamSubscription? _a, _b, _c;
+  static List<Post> _mine = [], _all = [];
+  static bool _busy = false, _again = false;
   static String _uid = '';
+  static Timer? _poll;
+  static final _resume = _Resume();
+
+  static bool _pending(Map c) {
+    final legs = ((c['legs'] as List?) ?? const []).whereType<Map>();
+    return legs.any((l) => l['res'] is! List && l['win'] is! num);
+  }
+
+  /// Sonucu gelmemiş kuponların gün+şehir sonuçlarını TJK'dan ister.
+  static void poll({bool force = false}) {
+    final today = isoToday();
+    final keys = <String>{};
+    for (final p in _all) {
+      final c = p.coupon;
+      if (c == null || !_pending(c)) continue;
+      final iso = '${c['iso'] ?? ''}', city = '${c['city'] ?? ''}';
+      if (iso.isEmpty || city.isEmpty || iso.compareTo(today) > 0) continue;
+      keys.add('$iso|$city');
+    }
+    for (final k in keys) {
+      final i = k.indexOf('|');
+      final iso = k.substring(0, i), city = k.substring(i + 1);
+      if (iso == TjkStore.i.iso && TjkStore.i.cities.isNotEmpty) {
+        TjkStore.i.refreshResults(force: force);
+      } else {
+        pullLiveRes(iso, city);
+      }
+    }
+  }
 
   static void start(String uid) {
     if (_uid == uid) return;
@@ -27,20 +65,35 @@ class Settler {
     _b = db.collection('posts').where('uid', isEqualTo: uid).limit(100).snapshots().listen((s) {
       _mine = s.docs.map((d) => Post(d.id, d.data())).toList();
       _run();
+      poll();
     }, onError: (_) {});
     TjkStore.i.addListener(_run);
+    _c = db.collection('posts').orderBy('ts', descending: true).limit(100).snapshots().listen((s) {
+      _all = s.docs.map((d) => Post(d.id, d.data())).toList();
+      poll(); // herkesin kuponu: açılışta hemen
+    }, onError: (_) {});
+    liveResTick.addListener(_run);
+    WidgetsBinding.instance.addObserver(_resume);
+    _poll = Timer.periodic(const Duration(seconds: 60), (_) => poll());
     TjkStore.i.ensureLoaded();
   }
 
   static void stop() {
     _a?.cancel();
     _b?.cancel();
+    _c?.cancel();
     TjkStore.i.removeListener(_run);
+    liveResTick.removeListener(_run);
+    WidgetsBinding.instance.removeObserver(_resume);
+    _poll?.cancel();
     _uid = '';
   }
 
   static Future<void> _run() async {
-    if (_busy) return;
+    if (_busy) {
+      _again = true; // çalışırken yeni sonuç geldiyse bitince bir tur daha
+      return;
+    }
     _busy = true;
     try {
       final db = FirebaseFirestore.instance;
@@ -90,6 +143,10 @@ class Settler {
       }
     } finally {
       _busy = false;
+      if (_again) {
+        _again = false;
+        _run();
+      }
     }
   }
 }

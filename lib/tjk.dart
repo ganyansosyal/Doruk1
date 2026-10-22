@@ -859,6 +859,34 @@ Map<int, RaceResult> _resultsIso(List<Object> a) {
 /// 'iso|şehir' -> koşu no -> geliş sırası. Kupon değerlendirmesi buradan okur.
 final Map<String, Map<int, List<int>>> liveRes = {};
 
+/// liveRes her değiştiğinde artar: akış / profil / liderler dinleyip yeniden çizer (Sonuçlar sekmesine girmeye gerek kalmaz).
+final ValueNotifier<int> liveResTick = ValueNotifier<int>(0);
+
+final Map<String, DateTime> _pullAt = {};
+
+/// Belirli gün + şehrin sonuçlarını, ekrandaki gün (TjkStore.iso) ne olursa olsun bağımsız çeker.
+/// Kullanıcı Sonuçlar'da başka güne baksa bile bugünkü kuponların sonucu gelmeye devam eder.
+Future<void> pullLiveRes(String iso, String city) async {
+  final k = '$iso|$city';
+  final last = _pullAt[k];
+  if (last != null && DateTime.now().difference(last).inSeconds < 12) return;
+  _pullAt[k] = DateTime.now();
+  try {
+    final cs = await getCities(iso);
+    City? ct;
+    for (final x in cs) {
+      if (x.name == city) ct = x;
+    }
+    if (ct == null) return;
+    final rs = await getProgram(ct, iso);
+    if (rs.isEmpty) return;
+    final got = await getResults(ct, iso, rs);
+    if (got.isEmpty) return;
+    liveRes[k] = {...?liveRes[k], for (final e in got.entries) e.key: e.value.sira};
+    liveResTick.value++;
+  } catch (_) {}
+}
+
 /* ---------------- Ortak durum ---------------- */
 
 /// Bugünün bülteni + sonuçları; Tahmin Yap, Sonuçlar ve kupon değerlendirme paylaşır.
@@ -961,6 +989,7 @@ class TjkStore extends ChangeNotifier {
         final got = await getResults(c, iso, rs);
         results[c.name] = {...?results[c.name], ...got};
         liveRes['$iso|${c.name}'] = {for (final e in results[c.name]!.entries) e.key: e.value.sira};
+        liveResTick.value++;
         notifyListeners();
       } catch (_) {}
     }
