@@ -29,8 +29,13 @@ class AuthGate extends StatelessWidget {
         builder: (_, snap) {
           if (snap.connectionState == ConnectionState.waiting) return const _Loading();
           final user = snap.data;
-          if (user == null || busy) return const AuthPage();
-          return _ProfileGate(key: ValueKey(user.uid), user: user);
+          // Ekranlar arası sert değişim yerine yumuşak geçiş (yanıp sönme olmasın)
+          return AnimatedSwitcher(
+            duration: const Duration(milliseconds: 350),
+            switchInCurve: Curves.easeOut,
+            switchOutCurve: Curves.easeIn,
+            child: (user == null || busy) ? const AuthPage(key: ValueKey('auth')) : _ProfileGate(key: ValueKey(user.uid), user: user),
+          );
         },
       ),
     );
@@ -51,8 +56,10 @@ class _ProfileGateState extends State<_ProfileGate> {
   @override
   Widget build(BuildContext context) {
     final c = AppColors.of(context);
+    final cached = profileNotifier.value;
     return FutureBuilder<Profile>(
       future: _f,
+      initialData: cached != null && cached.uid == widget.user.uid ? cached : null,
       builder: (_, s) {
         if (s.hasData) return const Shell();
         if (s.hasError) {
@@ -130,7 +137,7 @@ class AuthPage extends StatefulWidget {
 }
 
 class _AuthPageState extends State<AuthPage> {
-  bool _reg = false, _busy = false, _show = false;
+  bool _reg = false, _busy = false, _show = false, _ok = false;
   String? _err;
   String _photo = '';
   Uint8List? _bytes;
@@ -267,9 +274,20 @@ class _AuthPageState extends State<AuthPage> {
       } else {
         await AuthService.login(_id.text.trim(), _lpw.text);
       }
+      // Başarılı: buton "Giriş yapıldı" olsun, profil arkada yüklensin, sonra yumuşakça geçilsin
+      if (mounted) setState(() => _ok = true);
+      await Future.wait([
+        AuthService.finishAuth(),
+        Future.delayed(const Duration(milliseconds: 600)),
+      ]);
+      return;
     } on AuthException catch (e) {
-      if (mounted) setState(() => _err = e.message);
-    } finally {
+      if (mounted) setState(() {
+        _err = e.message;
+        _busy = false;
+      });
+    } catch (_) {
+      AuthService.busy.value = false;
       if (mounted) setState(() => _busy = false);
     }
   }
@@ -542,16 +560,26 @@ class _AuthPageState extends State<AuthPage> {
                               style: FilledButton.styleFrom(
                                 backgroundColor: c.ac,
                                 foregroundColor: c.on,
-                                disabledBackgroundColor: c.ac.withAlpha(150),
+                                disabledBackgroundColor: c.ac,
+                                disabledForegroundColor: c.on,
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                               ),
-                              child: _busy
-                                  ? SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(strokeWidth: 2.4, color: c.on),
-                                    )
-                                  : Text(_reg ? 'Kayıt Ol' : 'Giriş Yap', style: jakarta(15, FontWeight.w800, c.on)),
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 200),
+                                child: _ok
+                                    ? Row(key: const ValueKey('ok'), mainAxisSize: MainAxisSize.min, children: [
+                                        Icon(Icons.check_circle_rounded, color: c.on, size: 20),
+                                        const SizedBox(width: 8),
+                                        Text(_reg ? 'Hesap oluşturuldu' : 'Giriş yapıldı', style: jakarta(15, FontWeight.w800, c.on)),
+                                      ])
+                                    : _busy
+                                        ? Row(key: const ValueKey('busy'), mainAxisSize: MainAxisSize.min, children: [
+                                            SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.4, color: c.on)),
+                                            const SizedBox(width: 10),
+                                            Text(_reg ? 'Kaydediliyor…' : 'Giriş yapılıyor…', style: jakarta(15, FontWeight.w800, c.on)),
+                                          ])
+                                        : Text(_reg ? 'Kayıt Ol' : 'Giriş Yap', key: const ValueKey('idle'), style: jakarta(15, FontWeight.w800, c.on)),
+                              ),
                             ),
                           ),
                           const SizedBox(height: 14),

@@ -199,6 +199,21 @@ class _FeedPageState extends State<FeedPage> {
     super.dispose();
   }
 
+  // Aşağı çekince: paylaşımları, kullanıcıları ve puanları sunucudan taze çek (yeni paylaşım varsa gelir)
+  Future<void> _refresh() async {
+    TjkStore.i.ensureLoaded();
+    const srv = GetOptions(source: Source.server);
+    try {
+      await Future.wait([
+        _db.collection('posts').orderBy('ts', descending: true).limit(100).get(srv),
+        _db.collection('users').limit(300).get(srv),
+        _db.collection('grants').limit(500).get(srv),
+        _db.collection('mods').limit(100).get(srv),
+      ]).timeout(const Duration(seconds: 8));
+    } catch (_) {}
+    if (mounted) setState(() => _ver++);
+  }
+
   Future<void> _share() async {
     final t = _ctl.text.trim();
     final me = profileNotifier.value;
@@ -302,18 +317,25 @@ class _FeedPageState extends State<FeedPage> {
               if (list.isEmpty)
                 Padding(padding: const EdgeInsets.all(20), child: Text(_filter == 'follow' ? 'Takip ettiğin kimsenin paylaşımı yok.' : _filter == 'mine' ? 'Henüz bir şey paylaşmadın.' : _filter == 'lost' ? 'Bugün kaybeden kupon yok.' : _filter == 'winners' ? 'Bugün tutan kupon yok.' : _filter == 'tracked' ? 'Takip ettiğin kupon yok.' : 'Henüz paylaşım yok.', textAlign: TextAlign.center, style: jakarta(13, FontWeight.w600, c.mu))),
             ];
-            return ListView.builder(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 20),
-              cacheExtent: 1200, // Kartlar ekrana girmeden önce hazırlansın (kaydırırken çizim takılmasın)
-              itemCount: head.length + list.length,
-              itemBuilder: (context, i) {
-                if (i < head.length) return head[i];
-                final p = list[i - head.length];
-                return RepaintBoundary( // Her kartı kendi katmanına alır
-                  key: ValueKey(p.id),
-                  child: PostCard(key: ValueKey(p.id), post: p, following: following.contains(p.uid), tracked: tracked.contains(p.id), isMod: _mods.contains(p.uid)),
-                );
-              },
+            // Yukarıdan aşağı çekince yenile (Instagram gibi dönen simge)
+            return RefreshIndicator(
+              color: c.ac,
+              backgroundColor: c.sf,
+              onRefresh: _refresh,
+              child: ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 20),
+                cacheExtent: 1200, // Kartlar ekrana girmeden önce hazırlansın (kaydırırken çizim takılmasın)
+                itemCount: head.length + list.length,
+                itemBuilder: (context, i) {
+                  if (i < head.length) return head[i];
+                  final p = list[i - head.length];
+                  return RepaintBoundary( // Her kartı kendi katmanına alır
+                    key: ValueKey(p.id),
+                    child: PostCard(key: ValueKey(p.id), post: p, following: following.contains(p.uid), tracked: tracked.contains(p.id), isMod: _mods.contains(p.uid)),
+                  );
+                },
+              ),
             );
           },
         );
