@@ -388,36 +388,36 @@ Widget build(BuildContext context) {
         padding: EdgeInsets.zero,
         children: [
           SizedBox(
-            height: 200,
+            height: 152,
             child: Stack(children: [
           Positioned(top: 0, left: 0, right: 0, child: Container(
-            height: 130,
+            height: 100,
             width: double.infinity,
             margin: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
               color: c.ac.withAlpha(20),
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(color: c.ac.withAlpha(40)),
             ),
             child: Stack(
               alignment: Alignment.center,
               children: [
-                Positioned(left: -50, top: -50, child: Icon(Icons.waves, size: 250, color: c.ac.withAlpha(15))),
+                Positioned(left: -50, top: -60, child: Icon(Icons.waves, size: 220, color: c.ac.withAlpha(15))),
                 Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text.rich(
                       TextSpan(
                         children: [
-                          TextSpan(text: 'Ganyan', style: jakarta(34, FontWeight.w800, c.tx)),
-                          TextSpan(text: 'Sosyal', style: jakarta(34, FontWeight.w800, c.ac)),
+                          TextSpan(text: 'Ganyan', style: jakarta(26, FontWeight.w800, c.tx)),
+                          TextSpan(text: 'Sosyal', style: jakarta(26, FontWeight.w800, c.ac)),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Container(width: 50, height: 3, color: c.ac),
-                    const SizedBox(height: 8),
-                    Text('TAHMİN ET  •  PAYLAŞ  •  KAZAN', style: jakarta(9.5, FontWeight.w800, c.mu).copyWith(letterSpacing: 1.5)),
+                    const SizedBox(height: 3),
+                    Container(width: 40, height: 2.5, color: c.ac),
+                    const SizedBox(height: 6),
+                    Text('TAHMİN ET  •  PAYLAŞ  •  KAZAN', style: jakarta(8.5, FontWeight.w800, c.mu).copyWith(letterSpacing: 1.5)),
                   ],
                 ),
               ],
@@ -441,36 +441,36 @@ Widget build(BuildContext context) {
                 ),
               ),
             ),
-          Positioned(top: 85, left: 0, right: 0, child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+          Positioned(top: 66, left: 0, right: 0, child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 22),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: p.frame.isNotEmpty ? null : Border.all(color: c.bg, width: 5),
+                      border: p.frame.isNotEmpty ? null : Border.all(color: c.bg, width: 4),
                       boxShadow: p.frame.isNotEmpty ? null : [BoxShadow(color: Colors.black12, blurRadius: 10, offset: const Offset(0, 4))],
                     ),
-                    child: Avatar(profile: p, size: 90),
+                    child: Avatar(profile: p, size: 68),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.only(top: 48),
+                      padding: const EdgeInsets.only(top: 38),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onTap: canManage ? openMenu : null,
-                            child: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(22, FontWeight.w800, c.tx)),
+                            child: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(18, FontWeight.w800, c.tx)),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 3),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(color: c.ac.withAlpha(20), borderRadius: BorderRadius.circular(10)),
-                            child: Text('@${p.handle}', style: jakarta(13, FontWeight.w700, c.ac)),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(color: c.ac.withAlpha(20), borderRadius: BorderRadius.circular(9)),
+                            child: Text('@${p.handle}', style: jakarta(11.5, FontWeight.w700, c.ac)),
                           ),
                         ],
                       ),
@@ -483,7 +483,7 @@ Widget build(BuildContext context) {
             ]),
           ),
           Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -491,36 +491,36 @@ Widget build(BuildContext context) {
                       Align(
                         alignment: Alignment.centerRight,
                         child: Container(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFFDB2777)]),
-                            borderRadius: BorderRadius.circular(14),
-                            boxShadow: const [BoxShadow(color: Color(0x55A855F7), blurRadius: 8, offset: Offset(0, 3))],
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: const [BoxShadow(color: Color(0x40A855F7), blurRadius: 6, offset: Offset(0, 2))],
                           ),
                           child: Row(mainAxisSize: MainAxisSize.min, children: [
-                            Icon(isAdmin ? Icons.lock_outline : Icons.block, size: 14, color: Colors.white),
-                            const SizedBox(width: 5),
-                            Text(isAdmin ? 'Yönetici' : 'Moderatör', style: jakarta(12.5, FontWeight.w800, Colors.white)),
+                            Icon(isAdmin ? Icons.lock_outline : Icons.block, size: 12, color: Colors.white),
+                            const SizedBox(width: 4),
+                            Text(isAdmin ? 'Yönetici' : 'Moderatör', style: jakarta(11, FontWeight.w800, Colors.white)),
                           ]),
                         ),
                       ),
                     if (p.bio.isNotEmpty)
                       Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Text(p.bio, style: jakarta(14, FontWeight.w500, p.bioColor != null && p.bioColor!.isNotEmpty ? _hexColor(p.bioColor!) : c.tx)),
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(p.bio, style: jakarta(13, FontWeight.w500, p.bioColor != null && p.bioColor!.isNotEmpty ? _hexColor(p.bioColor!) : c.tx)),
                       )
                     else if (mine)
                       GestureDetector(
                         onTap: _edit,
                         child: Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: Text('+ Biyografi ekle', style: jakarta(14, FontWeight.w700, c.ac)),
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text('+ Biyografi ekle', style: jakarta(13, FontWeight.w700, c.ac)),
                         ),
                       ),
                     SizedBox(
                       width: double.infinity,
-                      height: 44,
+                      height: 38,
                       child: mine
                           ? OutlinedButton(
                               onPressed: _edit,
@@ -530,9 +530,9 @@ Widget build(BuildContext context) {
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                               ),
                               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                Icon(Icons.edit_outlined, size: 17, color: c.ac),
+                                Icon(Icons.edit_outlined, size: 15, color: c.ac),
                                 const SizedBox(width: 6),
-                                Text('Profili Düzenle', style: jakarta(14, FontWeight.w800, c.ac)),
+                                Text('Profili Düzenle', style: jakarta(13, FontWeight.w800, c.ac)),
                               ]),
                             )
                           : FilledButton(
@@ -554,13 +554,17 @@ Widget build(BuildContext context) {
                                 }
                               },
                               style: FilledButton.styleFrom(
-                                backgroundColor: isFol ? c.sf2 : c.ac,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                backgroundColor: isFol ? c.sf : c.ac,
+                                side: isFol ? BorderSide(color: c.ln) : null,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                               ),
-                              child: Text(isFol ? 'Takip Ediliyor' : 'Takip Et', style: jakarta(14, FontWeight.w800, isFol ? c.mu : c.on)),
+                              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                if (isFol) ...[Icon(Icons.check_rounded, size: 18, color: c.ac), const SizedBox(width: 6)],
+                                Text(isFol ? 'Takip Ediliyor' : 'Takip Et', style: jakarta(13, FontWeight.w800, isFol ? c.ac : c.on)),
+                              ]),
                             ),
                     ),
-                    const SizedBox(height: 22),
+                    const SizedBox(height: 14),
                     Row(
                       children: [
                         _stat(c, fmtPts(score.pts), 'Puan', null),
@@ -572,9 +576,9 @@ Widget build(BuildContext context) {
                         _stat(c, '${following.length}', 'Takip', () => _people(1)),
                       ],
                     ),
-                    const SizedBox(height: 22),
+                    const SizedBox(height: 14),
                     Container(
-                      padding: const EdgeInsets.all(5),
+                      padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(color: c.sf, borderRadius: BorderRadius.circular(16), border: Border.all(color: c.ln)),
                       child: Row(
                         children: [
@@ -584,7 +588,7 @@ Widget build(BuildContext context) {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 10),
                     if (shown.isEmpty)
                       Padding(
                         padding: const EdgeInsets.all(40),
@@ -611,13 +615,13 @@ Widget build(BuildContext context) {
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(color: c.sf, borderRadius: BorderRadius.circular(16), border: Border.all(color: c.ln)),
+          padding: const EdgeInsets.symmetric(vertical: 7),
+          decoration: BoxDecoration(color: c.sf, borderRadius: BorderRadius.circular(14), border: Border.all(color: c.ln)),
           child: Column(
             children: [
-              Text(v, style: jakarta(17, FontWeight.w800, c.ac)),
-              Text(l, style: jakarta(11, FontWeight.w600, c.mu)),
-              if (onTap != null) Container(margin: const EdgeInsets.only(top: 4), width: 16, height: 2, color: c.ac.withAlpha(120)),
+              Text(v, style: jakarta(15, FontWeight.w800, c.ac)),
+              Text(l, style: jakarta(10, FontWeight.w600, c.mu)),
+              if (onTap != null) Container(margin: const EdgeInsets.only(top: 3), width: 14, height: 2, color: c.ac.withAlpha(120)),
             ],
           ),
         ),
@@ -631,9 +635,9 @@ Widget build(BuildContext context) {
       child: GestureDetector(
         onTap: () => setState(() => _tab = k),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(color: on ? c.ac : Colors.transparent, borderRadius: BorderRadius.circular(12)),
-          child: Text(label, textAlign: TextAlign.center, style: jakarta(13, FontWeight.w800, on ? c.on : c.mu)),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(color: on ? c.ac : Colors.transparent, borderRadius: BorderRadius.circular(11)),
+          child: Text(label, textAlign: TextAlign.center, style: jakarta(12, FontWeight.w800, on ? c.on : c.mu)),
         ),
       ),
     );
@@ -848,9 +852,9 @@ class _PeopleSheetState extends State<_PeopleSheet> {
                                           decoration: BoxDecoration(
                                             color: isFol ? c.sf : c.ac,
                                             borderRadius: BorderRadius.circular(14),
-                                            border: Border.all(color: isFol ? c.ln : c.ac, width: 1.4),
+                                            border: Border.all(color: isFol ? c.ln : c.ac),
                                           ),
-                                          child: Text(isFol ? 'Takiptesin' : 'Takip Et', style: jakarta(13.5, FontWeight.w800, isFol ? c.tx : c.on)),
+                                          child: Text(isFol ? 'Takiptesin' : 'Takip Et', style: jakarta(13.5, FontWeight.w800, isFol ? c.ac : c.on)),
                                         ),
                                       ),
                                     ],

@@ -95,10 +95,10 @@ class _LeadersPageState extends State<LeadersPage> {
     final me = profileNotifier.value?.uid ?? '';
     final top = _rows;
     final head = <Widget>[
-      Text('Puan sıralaması', style: jakarta(22, FontWeight.w800, c.tx)),
-      const SizedBox(height: 4),
-      Text('Puana göre sıralanır. Puan eşitse isabet oranı yüksek olan öne geçer.', style: jakarta(13.5, FontWeight.w500, c.mu)),
-      const SizedBox(height: 14),
+      Text('Puan sıralaması', style: jakarta(18, FontWeight.w800, c.tx)),
+      const SizedBox(height: 2),
+      Text('Puana göre sıralanır. Puan eşitse isabet oranı yüksek olan öne geçer.', style: jakarta(11.5, FontWeight.w500, c.mu)),
+      const SizedBox(height: 10),
       if (top.isEmpty)
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 48),
@@ -112,7 +112,7 @@ class _LeadersPageState extends State<LeadersPage> {
         ),
     ];
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 24),
       cacheExtent: 600,
       itemCount: head.length + top.length,
       itemBuilder: (context, i) => i < head.length ? head[i] : RepaintBoundary(child: _row(c, i - head.length, top[i - head.length], me)),
@@ -126,50 +126,50 @@ class _LeadersPageState extends State<LeadersPage> {
     return GestureDetector(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileRoute(uid: x.d.id))),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(12),
+        margin: const EdgeInsets.only(bottom: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: isMe ? c.ac.withAlpha(24) : c.sf,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: isMe ? c.ac : c.ln),
         ),
         child: Row(children: [
           SizedBox(
-            width: 34,
-            child: Text(x.s.pts > 0 ? medal : '–', textAlign: TextAlign.center, style: jakarta(i < 3 ? 22 : 16, FontWeight.w800, c.mu)),
+            width: 28,
+            child: Text(x.s.pts > 0 ? medal : '–', textAlign: TextAlign.center, style: jakarta(i < 3 ? 17 : 13.5, FontWeight.w800, c.mu)),
           ),
-          const SizedBox(width: 6),
-          Avatar(profile: u, size: 52),
-          const SizedBox(width: 12),
+          const SizedBox(width: 4),
+          Avatar(profile: u, size: 38),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(u.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(16, FontWeight.w800, c.tx)),
+              Text(u.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(13.5, FontWeight.w800, c.tx)),
               Text('@${u.handle}${x.s.tot > 0 ? ' · %${x.s.pct} isabet' : ''}',
-                  maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(13, FontWeight.w600, c.mu)),
+                  maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(11, FontWeight.w600, c.mu)),
             ]),
           ),
           Column(children: [
-            Text(fmtPts(x.s.pts), style: jakarta(22, FontWeight.w800, c.ac)),
-            Text('puan', style: jakarta(12, FontWeight.w600, c.mu)),
+            Text(fmtPts(x.s.pts), style: jakarta(17, FontWeight.w800, c.ac)),
+            Text('puan', style: jakarta(10, FontWeight.w600, c.mu)),
           ]),
           ValueListenableBuilder<bool>(
             valueListenable: isAdminNotifier,
             builder: (context, adm, _) => !adm
                 ? const SizedBox.shrink()
                 : Padding(
-                    padding: const EdgeInsets.only(left: 12),
+                    padding: const EdgeInsets.only(left: 10),
                     child: GestureDetector(
                       onTap: () => showGiftDialog(context, uid: x.d.id, name: u.name, targetAdmin: u.isAdmin),
                       child: Container(
-                        width: 44,
-                        height: 44,
+                        width: 34,
+                        height: 34,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFFA855F7), Color(0xFFDB2777)]),
-                          borderRadius: BorderRadius.circular(14),
-                          boxShadow: const [BoxShadow(color: Color(0x59A855F7), blurRadius: 10, offset: Offset(0, 4))],
+                          borderRadius: BorderRadius.circular(11),
+                          boxShadow: const [BoxShadow(color: Color(0x40A855F7), blurRadius: 6, offset: Offset(0, 2))],
                         ),
-                        child: const Text('🎁', style: TextStyle(fontSize: 22)),
+                        child: const Text('🎁', style: TextStyle(fontSize: 17)),
                       ),
                     ),
                   ),
