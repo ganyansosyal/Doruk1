@@ -60,7 +60,8 @@ class _Sel {
 
 class PredictPage extends StatefulWidget {
   final VoidCallback onShared;
-  const PredictPage({super.key, required this.onShared});
+  final bool active; // Tahmin Yap sekmesi şu an açık mı
+  const PredictPage({super.key, required this.onShared, this.active = true});
   @override
   State<PredictPage> createState() => _PredictPageState();
 }
@@ -90,6 +91,13 @@ class _PredictPageState extends State<PredictPage> {
     } else {
       _initCity();
     }
+  }
+
+  @override
+  void didUpdateWidget(covariant PredictPage old) {
+    super.didUpdateWidget(old);
+    // Sekmeden ayrılınca açık kalan Detay bölümleri kapansın
+    if (old.active && !widget.active) _detOpen.clear();
   }
 
   @override
@@ -1349,7 +1357,16 @@ Widget _horseDetail(AppColors c, Horse h, String key) {
                   Expanded(child: Text(open ? 'Detay bilgileri' : sum, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(11, FontWeight.w600, c.mu))),
                   GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap: () => setState(() => open ? _detOpen.remove('$_city|$_race|${h.no}') : _detOpen.add('$_city|$_race|${h.no}')),
+                    onTap: () => setState(() {
+                      final k = '$_city|$_race|${h.no}';
+                      if (open) {
+                        _detOpen.remove(k);
+                      } else {
+                        _detOpen
+                          ..clear() // diğer açık detaylar kapansın
+                          ..add(k);
+                      }
+                    }),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                       child: Text('Detay ${open ? '▴' : '▾'}', style: jakarta(12, FontWeight.w800, c.ac)),
