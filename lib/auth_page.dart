@@ -15,19 +15,29 @@ import 'theme.dart';
 
 /* ---------------- Oturum kapısı ---------------- */
 
-class AuthGate extends StatelessWidget {
+class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  // authStateChanges() her çağrıda YENİ bir akış üretir. Her yeniden çizimde yeniden çağrılırsa
+  // StreamBuilder baştan abone olup "bekliyor" durumuna döner ve ekranda boş "yükleniyor" yanıp söner (titreme).
+  Stream<User?>? _auth;
 
   @override
   Widget build(BuildContext context) {
     if (!firebaseReady) {
       return _Message(title: 'Sunucuya bağlanılamadı', text: firebaseProblem);
     }
-    return ValueListenableBuilder<bool>(
-      valueListenable: AuthService.busy,
-      builder: (_, busy, __) => StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (_, snap) {
+    _auth ??= FirebaseAuth.instance.authStateChanges();
+    return StreamBuilder<User?>(
+      stream: _auth,
+      builder: (_, snap) => ValueListenableBuilder<bool>(
+        valueListenable: AuthService.busy,
+        builder: (_, busy, __) {
           final Widget page;
           if (snap.connectionState == ConnectionState.waiting) {
             page = const _Loading(key: ValueKey('loading'));
@@ -37,7 +47,7 @@ class AuthGate extends StatelessWidget {
                 ? const AuthPage(key: ValueKey('auth'))
                 : AccessGate(key: ValueKey(user.uid), uid: user.uid, child: _ProfileGate(key: ValueKey(user.uid), user: user));
           }
-          // Sayfalar arası ani değişim (titreme) yerine kısa bir solma geçişi
+          // Sayfalar arası ani değişim yerine kısa bir solma geçişi
           return AnimatedSwitcher(duration: const Duration(milliseconds: 260), child: page);
         },
       ),
