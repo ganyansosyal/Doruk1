@@ -19,4 +19,4 @@ jobs:
       - run: node settle.mjs
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          WRITE: "0"   # deneme sonuçları doğru çıkınca "1" yapılacak
+          WRITE: "1"   # deneme sonuçları doğru çıkınca "1" yapılacak
