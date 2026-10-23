@@ -52,6 +52,7 @@ class GanyanApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         showPerformanceOverlay: perf,
         themeMode: mode,
+        themeAnimationDuration: Duration.zero, // tema değişince ara renk geçişi (gri titreme) olmasın, anında değişsin
         scrollBehavior: const NoBounceScroll(),
         // Ekran küçültme (FittedBox) kaldırıldı: her kare ayrıca ölçeklenmesin, kaydırma akıcı olsun.
         // Site 445 genişliğe göre tasarlandı; dar telefonlarda sadece yazı boyutu orantılı küçülür.
