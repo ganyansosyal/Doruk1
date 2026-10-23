@@ -388,7 +388,7 @@ Widget build(BuildContext context) {
         padding: EdgeInsets.zero,
         children: [
           SizedBox(
-            height: 168,
+            height: 186, // avatar/@kullanıcı adı ile altındaki butonlar arasında nefes payı
             child: Stack(children: [
           Positioned(top: 0, left: 0, right: 0, child: Container(
             height: 115,
