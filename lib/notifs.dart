@@ -195,17 +195,31 @@ class _NotificationsPageState extends State<NotificationsPage> {
               final n = l[i];
               return GestureDetector(
                 onTap: () {
+                  final type = (n['type'] ?? '').toString();
                   final f = (n['from'] ?? '').toString();
+                  final pd = (n['pd'] ?? '').toString();
+                  // Takip bildirimi: profile git. Diğerleri (kupon, beğeni, yorum, tuttu/tutmadı): kuponu akışta bul
+                  if (type != 'follow' && pd.isNotEmpty) {
+                    feedTarget.value = FeedTarget(pd, type);
+                    Navigator.pop(context);
+                    return;
+                  }
                   if (f.isNotEmpty && f != me) Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileRoute(uid: f)));
                 },
                 child: Container(
                   margin: const EdgeInsets.only(bottom: 8),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(color: c.sf, borderRadius: BorderRadius.circular(18), border: Border.all(color: c.ln)),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(_text(n), style: jakarta(14, FontWeight.w700, c.tx)),
-                    const SizedBox(height: 3),
-                    Text(fmtStamp((n['ts'] as num?)?.toInt() ?? 0), style: jakarta(11.5, FontWeight.w500, c.mu)),
+                  child: Row(children: [
+                    _NotifAvatar(uid: (n['from'] ?? '').toString(), name: (n['fn'] ?? '').toString(), type: (n['type'] ?? '').toString()),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(_text(n), style: jakarta(14, FontWeight.w700, c.tx)),
+                        const SizedBox(height: 3),
+                        Text(fmtStamp((n['ts'] as num?)?.toInt() ?? 0), style: jakarta(11.5, FontWeight.w500, c.mu)),
+                      ]),
+                    ),
                   ]),
                 ),
               );
@@ -213,6 +227,35 @@ class _NotificationsPageState extends State<NotificationsPage> {
           );
         },
       ),
+    );
+  }
+}
+
+/* Bildirimdeki kullanıcı fotoğrafı (güncel profili canlı çeker) */
+class _NotifAvatar extends StatelessWidget {
+  final String uid, name, type;
+  const _NotifAvatar({required this.uid, required this.name, required this.type});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppColors.of(context);
+    if (uid.isEmpty) {
+      final win = type == 'win';
+      return CircleAvatar(
+        radius: 22,
+        backgroundColor: c.ac.withOpacity(0.12),
+        child: Icon(win ? Icons.emoji_events_outlined : Icons.receipt_long_outlined, color: c.ac, size: 22),
+      );
+    }
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance.collection('users').doc(uid).snapshots(),
+      builder: (_, s) {
+        final d = s.data;
+        final p = (d != null && d.exists && d.data() != null)
+            ? Profile.fromMap(uid, d.data()!)
+            : Profile(uid: uid, name: name, handle: '');
+        return Avatar(profile: p, size: 44);
+      },
     );
   }
 }
