@@ -33,47 +33,59 @@ class AtHistPrefetch {
     final now = DateTime.now();
     final seen = <String>{};
     final ids = <String>[];
+    final galopIds = <String>[];
     for (final r in rs) {
       for (final h in r.atlar) {
         final id = h.atId;
-        if (h.kosmaz || id.isEmpty || atHistHazir(id) || !seen.add(id)) continue;
+        if (h.kosmaz || id.isEmpty) continue;
+        if (!atGalopHazir(id) && !galopIds.contains(id)) galopIds.add(id);
+        if (atHistHazir(id) || !seen.add(id)) continue;
         final f = _fail[id];
         if (f != null && now.difference(f) < const Duration(minutes: 10)) continue;
         ids.add(id);
       }
     }
+    // Galop: tüm atlar için hemen, 6'şar atlık paketlerle (seçili koşu önde)
+    for (final id in galopIds) {
+      getAtGalop(id).then((_) {}, onError: (Object _) {});
+    }
     _q
       ..clear()
       ..addAll(ids);
     if (_q.isEmpty) return;
-    Future<void>.delayed(const Duration(milliseconds: 1200), _pump);
+    Future<void>.delayed(const Duration(milliseconds: 400), _pump);
   }
 
   Future<void> _pump() async {
     if (_run) return;
     _run = true;
     try {
-      while (_q.isNotEmpty) {
-        final life = WidgetsBinding.instance.lifecycleState;
-        if (life != null && life != AppLifecycleState.resumed) {
-          await Future<void>.delayed(const Duration(seconds: 3));
-          continue;
-        }
-        if (DateTime.now().difference(_touch) < const Duration(milliseconds: 900)) {
-          await Future<void>.delayed(const Duration(milliseconds: 900));
-          continue;
-        }
-        final id = _q.removeAt(0);
-        if (atHistHazir(id)) continue;
-        try {
-          await getAtHist(id).timeout(const Duration(seconds: 30));
-        } catch (_) {
-          _fail[id] = DateTime.now();
-        }
-        await Future<void>.delayed(const Duration(milliseconds: 700));
-      }
+      await Future.wait([_worker(), _worker(), _worker()]); // 3 at aynı anda
     } finally {
       _run = false;
+    }
+  }
+
+  Future<void> _worker() async {
+    while (_q.isNotEmpty) {
+      final life = WidgetsBinding.instance.lifecycleState;
+      if (life != null && life != AppLifecycleState.resumed) {
+        await Future<void>.delayed(const Duration(seconds: 3));
+        continue;
+      }
+      if (DateTime.now().difference(_touch) < const Duration(milliseconds: 600)) {
+        await Future<void>.delayed(const Duration(milliseconds: 600));
+        continue;
+      }
+      if (_q.isEmpty) break;
+      final id = _q.removeAt(0);
+      if (atHistHazir(id)) continue;
+      try {
+        await getAtHist(id).timeout(const Duration(seconds: 30));
+      } catch (_) {
+        _fail[id] = DateTime.now();
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 150));
     }
   }
 }
