@@ -57,7 +57,7 @@ Future<File?> _diskFile(String url) async {
 }
 
 /// ttl: bellek önbelleği (sn), disk: disk önbelleği (sn). 0 = kullanma.
-Future<String> _fetch(String url, {int sec = 20, int retry = 2, int ttl = 0, int disk = 0}) async {
+Future<String> _fetch(String url, {int sec = 20, int retry = 2, int ttl = 0, int disk = 0, bool fresh = true}) async {
   if (ttl > 0) {
     final hit = _htmlCache[url];
     if (hit != null && DateTime.now().difference(hit.t).inSeconds < ttl) return hit.body;
@@ -77,7 +77,7 @@ Future<String> _fetch(String url, {int sec = 20, int retry = 2, int ttl = 0, int
   }
   String body;
   try {
-    body = await _fetchRaw(url, sec: sec, retry: retry);
+    body = await _fetchRaw(url, sec: sec, retry: retry, fresh: fresh);
   } catch (e) {
     // İnternet yok/TJK yanıt vermiyor: eski de olsa diskteki kopyayı göster
     try {
@@ -99,9 +99,9 @@ Future<String> _fetch(String url, {int sec = 20, int retry = 2, int ttl = 0, int
   return body;
 }
 
-Future<String> _fetchRaw(String url, {int sec = 20, int retry = 2}) async {
+Future<String> _fetchRaw(String url, {int sec = 20, int retry = 2, bool fresh = true}) async {
   Object? last;
-  final ep = '$_backend?url=${Uri.encodeComponent(url)}&_cb=${DateTime.now().millisecondsSinceEpoch}';
+  final ep = '$_backend?url=${Uri.encodeComponent(url)}${fresh ? '&_cb=${DateTime.now().millisecondsSinceEpoch}' : ''}';
   for (var i = 0; i <= retry; i++) {
     try {
       final r = await http.get(Uri.parse(ep)).timeout(Duration(seconds: sec));
@@ -1083,7 +1083,7 @@ Future<AtHist> getAtHist(String atId) {
   return _histBusy[atId] ??= () async {
     try {
       final url = 'https://www.tjk.org/TR/yarissever/Query/ConnectedPage/AtKosuBilgileri?1=1&QueryParameter_AtId=${Uri.encodeComponent(atId)}';
-      final html = await _fetch(url, sec: 25, retry: 1, ttl: 600, disk: 43200);
+      final html = await _fetch(url, sec: 25, retry: 1, ttl: 600, disk: 43200, fresh: false);
       final m = await compute(_atHistIso, <String>[html, atId]);
       final r = AtHist(m['yaris'] == null ? null : AtRow.fromMap(m['yaris']!), m['gal'] == null ? null : AtRow.fromMap(m['gal']!));
       _histMem[atId] = r;
@@ -1194,7 +1194,7 @@ Map<String, Map<String, String>?> _atHistIso(List<String> a) {
 }
 
 /// Atın en yeni galop/sprint idmanı (İdman İstatistikleri sayfası). null = kayıt yok.
-Future<AtRow?> getAtGalop(String atId) {
+Future<AtRow?> _getAtGalopEski(String atId) {
   if (_galopMem.containsKey(atId)) return Future.value(_galopMem[atId]);
   return _galopBusy[atId] ??= () async {
     try {
@@ -1207,7 +1207,7 @@ Future<AtRow?> getAtGalop(String atId) {
       Object? last;
       for (final u in urls) {
         try {
-          final html = await _fetch(u, sec: 25, retry: 1, ttl: 600, disk: 43200);
+          final html = await _fetch(u, sec: 25, retry: 1, ttl: 600, disk: 43200, fresh: false);
           final m = await compute(_galopIso, html);
           if (m != null && m['err'] != null) {
             last = m['err'];
@@ -1225,6 +1225,76 @@ Future<AtRow?> getAtGalop(String atId) {
       _galopBusy.remove(atId);
     }
   }();
+}
+
+/* ---- Son galop: siteyle aynı yöntem (Cloudflare worker'dan 6'şar atlık toplu istek) ---- */
+const _galopBackend = 'https://galop.bilyoncu001.workers.dev';
+DateTime? _galopWorkerYok; // worker cevap vermezse 10 dk eski (tek tek) yönteme düşer
+final Map<String, Completer<AtRow?>> _galopWait = {};
+final List<String> _galopQ = [];
+Timer? _galopTimer;
+int _galopRun = 0;
+
+bool atGalopHazir(String atId) => _galopMem.containsKey(atId);
+
+Future<AtRow?> getAtGalop(String atId) {
+  if (_galopMem.containsKey(atId)) return Future.value(_galopMem[atId]);
+  final w = _galopWait[atId];
+  if (w != null) return w.future;
+  final wy = _galopWorkerYok;
+  if (wy != null && DateTime.now().difference(wy) < const Duration(minutes: 10)) return _getAtGalopEski(atId);
+  final c = Completer<AtRow?>();
+  _galopWait[atId] = c;
+  _galopQ.add(atId);
+  // Aynı anda gelen istekleri tek pakette topla
+  _galopTimer ??= Timer(const Duration(milliseconds: 60), () {
+    _galopTimer = null;
+    _galopPump();
+  });
+  return c.future;
+}
+
+Future<Map<String, dynamic>> _galopToplu(List<String> ids) async {
+  final u = '$_galopBackend?galop=${ids.map(Uri.encodeComponent).join(',')}';
+  final r = await http.get(Uri.parse(u)).timeout(const Duration(seconds: 30));
+  if (r.statusCode != 200) throw Exception('Worker HTTP ${r.statusCode}');
+  final j = jsonDecode(utf8.decode(r.bodyBytes, allowMalformed: true));
+  if (j is! Map || j['error'] != null) throw Exception('Worker galop yok');
+  return Map<String, dynamic>.from(j);
+}
+
+void _galopPump() {
+  while (_galopRun < 2 && _galopQ.isNotEmpty) {
+    final n = _galopQ.length < 6 ? _galopQ.length : 6;
+    final ids = _galopQ.sublist(0, n);
+    _galopQ.removeRange(0, n);
+    _galopRun++;
+    () async {
+      try {
+        final m = await _galopToplu(ids);
+        for (final id in ids) {
+          final r = m[id];
+          final c = _galopWait.remove(id);
+          if (r is Map && ('${r['t'] ?? ''}'.isNotEmpty || r['n'] != null)) {
+            final row = '${r['t'] ?? ''}'.isEmpty ? null : AtRow.fromMap(r);
+            _galopMem[id] = row;
+            c?.complete(row);
+          } else {
+            _getAtGalopEski(id).then((v) => c?.complete(v), onError: (Object e) => c?.completeError(e));
+          }
+        }
+      } catch (_) {
+        _galopWorkerYok = DateTime.now();
+        for (final id in ids) {
+          final c = _galopWait.remove(id);
+          _getAtGalopEski(id).then((v) => c?.complete(v), onError: (Object e) => c?.completeError(e));
+        }
+      } finally {
+        _galopRun--;
+        if (_galopQ.isNotEmpty) _galopPump();
+      }
+    }();
+  }
 }
 
 Map<String, String>? _galopIso(String html) {
