@@ -1,0 +1,22 @@
+name: settle
+on:
+  schedule:
+    - cron: '*/15 10-21 * * *'   # her 15 dk, Türkiye saati 13:00-00:59
+  workflow_dispatch:
+concurrency:
+  group: settle
+  cancel-in-progress: false
+jobs:
+  settle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund firebase-admin cheerio
+      - run: node settle.mjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          WRITE: "0"   # deneme sonuçları doğru çıkınca "1" yapılacak
