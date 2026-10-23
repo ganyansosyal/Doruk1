@@ -39,7 +39,7 @@ class _ShellState extends State<Shell> {
       case 1:
         return const LeadersPage();
       case 2:
-        return PredictPage(onShared: () => setState(() => _tab = 0));
+        return PredictPage(active: _tab == 2, onShared: () => setState(() => _tab = 0));
       case 3:
         return const ResultsPage();
       default:
