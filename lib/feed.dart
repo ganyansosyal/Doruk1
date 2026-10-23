@@ -223,7 +223,7 @@ class _FeedPageState extends State<FeedPage> {
         }
         final ctx = _tgtKey.currentContext;
         if (p != null && ctx != null) {
-          await Scrollable.ensureVisible(ctx, alignment: 0.15, duration: const Duration(milliseconds: 450), curve: Curves.easeOutCubic);
+          await Scrollable.ensureVisible(ctx, alignment: 0.5, duration: const Duration(milliseconds: 450), curve: Curves.easeOutCubic);
           if (!mounted) return;
           setState(() => _flashId = t.id);
           Future.delayed(const Duration(milliseconds: 2800), () { if (mounted && _flashId == t.id) setState(() => _flashId = null); });
