@@ -8,7 +8,8 @@ import 'package:html/parser.dart' as hp;
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 
-const _backend = 'https://tiny-sunset-7f18.bilyoncu001.workers.dev';
+// Önce önbellekli yeni Worker, ulaşılamazsa eski Worker
+const _backends = ['https://bulten.bilyoncu001.workers.dev', 'https://tiny-sunset-7f18.bilyoncu001.workers.dev'];
 
 String isoToday() {
   final n = DateTime.now();
@@ -101,10 +102,11 @@ Future<String> _fetch(String url, {int sec = 20, int retry = 2, int ttl = 0, int
 
 Future<String> _fetchRaw(String url, {int sec = 20, int retry = 2, bool fresh = true}) async {
   Object? last;
-  final ep = '$_backend?url=${Uri.encodeComponent(url)}${fresh ? '&_cb=${DateTime.now().millisecondsSinceEpoch}' : ''}';
   for (var i = 0; i <= retry; i++) {
     try {
-      final r = await http.get(Uri.parse(ep)).timeout(Duration(seconds: sec));
+      final b = _backends[i == 0 ? 0 : 1];
+      final ep = '$b?url=${Uri.encodeComponent(url)}${fresh ? '&_cb=${DateTime.now().millisecondsSinceEpoch}' : ''}';
+      final r = await http.get(Uri.parse(ep)).timeout(Duration(seconds: i == 0 && b == _backends[0] ? (sec < 12 ? sec : 12) : sec));
       if (r.statusCode == 200) return utf8.decode(r.bodyBytes, allowMalformed: true);
       last = 'HTTP ${r.statusCode}';
       if (r.statusCode < 500) break;
