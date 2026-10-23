@@ -28,10 +28,17 @@ class AuthGate extends StatelessWidget {
       builder: (_, busy, __) => StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (_, snap) {
-          if (snap.connectionState == ConnectionState.waiting) return const _Loading();
-          final user = snap.data;
-          if (user == null || busy) return const AuthPage();
-          return AccessGate(key: ValueKey(user.uid), uid: user.uid, child: _ProfileGate(key: ValueKey(user.uid), user: user));
+          final Widget page;
+          if (snap.connectionState == ConnectionState.waiting) {
+            page = const _Loading(key: ValueKey('loading'));
+          } else {
+            final user = snap.data;
+            page = (user == null || busy)
+                ? const AuthPage(key: ValueKey('auth'))
+                : AccessGate(key: ValueKey(user.uid), uid: user.uid, child: _ProfileGate(key: ValueKey(user.uid), user: user));
+          }
+          // Sayfalar arası ani değişim (titreme) yerine kısa bir solma geçişi
+          return AnimatedSwitcher(duration: const Duration(milliseconds: 260), child: page);
         },
       ),
     );
@@ -54,7 +61,14 @@ class _ProfileGateState extends State<_ProfileGate> {
     final c = AppColors.of(context);
     return FutureBuilder<Profile>(
       future: _f,
-      builder: (_, s) {
+      builder: (_, s) => AnimatedSwitcher(
+        duration: const Duration(milliseconds: 260),
+        child: KeyedSubtree(key: ValueKey(s.hasData ? 'ready' : (s.hasError ? 'error' : 'wait')), child: _gateBody(s, c)),
+      ),
+    );
+  }
+
+  Widget _gateBody(AsyncSnapshot<Profile> s, AppColors c) {
         if (s.hasData) {
           // Profil fotoğrafı olmayan herkes (e-posta / Google, yeni / eski hesap) fotoğraf ekleyene kadar uygulamaya geçemez
           return ValueListenableBuilder<Profile?>(
@@ -83,8 +97,6 @@ class _ProfileGateState extends State<_ProfileGate> {
           );
         }
         return const _Loading();
-      },
-    );
   }
 }
 
@@ -238,7 +250,7 @@ class _PhotoGateState extends State<_PhotoGate> {
 }
 
 class _Loading extends StatelessWidget {
-  const _Loading();
+  const _Loading({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -292,6 +304,7 @@ class AuthPage extends StatefulWidget {
 class _AuthPageState extends State<AuthPage> {
   bool _reg = false, _busy = false, _show = false;
   String? _err;
+  String _busyLabel = 'Giriş yapılıyor…';
   String _photo = '';
   Uint8List? _bytes;
   // Kullanıcı adı ipucu: sadece küçük yazı yeniden çizilsin, tüm form değil
@@ -398,6 +411,7 @@ class _AuthPageState extends State<AuthPage> {
     setState(() {
       _err = null;
       _busy = true;
+      _busyLabel = _reg ? 'Hesap oluşturuluyor…' : 'Giriş yapılıyor…';
     });
     try {
       if (_reg) {
@@ -423,6 +437,7 @@ class _AuthPageState extends State<AuthPage> {
     setState(() {
       _err = null;
       _busy = true;
+      _busyLabel = 'Google ile giriş yapılıyor…';
     });
     try {
       await AuthService.loginWithGoogle();
@@ -698,11 +713,20 @@ class _AuthPageState extends State<AuthPage> {
                                 pw: true),
                             const SizedBox(height: 6),
                           ],
-                          if (_err != null)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 10, top: 4),
-                              child: Text(_err!, style: jakarta(13, FontWeight.w700, c.red)),
-                            ),
+                          AnimatedSize(
+                            duration: const Duration(milliseconds: 220),
+                            curve: Curves.easeOutCubic,
+                            alignment: Alignment.topCenter,
+                            child: _err == null
+                                ? const SizedBox(width: double.infinity)
+                                : Container(
+                                    width: double.infinity,
+                                    margin: const EdgeInsets.only(bottom: 10, top: 4),
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                                    decoration: BoxDecoration(color: c.red.withAlpha(24), borderRadius: BorderRadius.circular(12)),
+                                    child: Text(_err!, style: jakarta(13, FontWeight.w700, c.red)),
+                                  ),
+                          ),
                           SizedBox(
                             height: 48,
                             child: FilledButton(
@@ -714,11 +738,15 @@ class _AuthPageState extends State<AuthPage> {
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                               ),
                               child: _busy
-                                  ? SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(strokeWidth: 2.4, color: c.on),
-                                    )
+                                  ? Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                                      SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(strokeWidth: 2.4, color: c.on),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Text(_busyLabel, style: jakarta(15, FontWeight.w800, c.on)),
+                                    ])
                                   : Text(_reg ? 'Kayıt Ol' : 'Giriş Yap', style: jakarta(15, FontWeight.w800, c.on)),
                             ),
                           ),
