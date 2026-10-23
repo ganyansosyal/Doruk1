@@ -377,6 +377,7 @@ class AuthService {
     }
   }
 
+  static bool _gInit = false;
   static const _webClientId = '871686667838-pnva3a84epi19lnbl7g35dmojr5132b6.apps.googleusercontent.com';
 
   /// Google ile giriş. İptal edilirse false döner.
@@ -384,13 +385,23 @@ class AuthService {
     busy.value = true;
     registering = true; // profil oluşana kadar bootstrap beklesin
     try {
-      final g = GoogleSignIn(serverClientId: _webClientId, scopes: ['email']);
-      await g.signOut(); // her seferinde hesap seçici açılsın
-      final acc = await g.signIn();
-      if (acc == null) return false;
-      final ga = await acc.authentication;
-      if (ga.idToken == null) throw const AuthException('Google kimlik doğrulaması alınamadı.');
-      final cred = GoogleAuthProvider.credential(idToken: ga.idToken, accessToken: ga.accessToken);
+      // google_sign_in 7: Android'de Credential Manager ("Google ile oturum aç" kompakt alt pencere)
+      final g = GoogleSignIn.instance;
+      if (!_gInit) {
+        await g.initialize(serverClientId: _webClientId);
+        _gInit = true;
+      }
+      try { await g.signOut(); } catch (_) {} // her seferinde hesap seçici açılsın
+      final GoogleSignInAccount acc;
+      try {
+        acc = await g.authenticate();
+      } on GoogleSignInException catch (e) {
+        if (e.code == GoogleSignInExceptionCode.canceled) return false; // kullanıcı kapattı
+        rethrow;
+      }
+      final idToken = acc.authentication.idToken;
+      if (idToken == null) throw const AuthException('Google kimlik doğrulaması alınamadı.');
+      final cred = GoogleAuthProvider.credential(idToken: idToken);
       final uc = await _auth.signInWithCredential(cred);
       final user = uc.user!;
       if (await loadProfile(user.uid) == null) await _ensureProfile(user);
