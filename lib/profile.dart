@@ -754,8 +754,11 @@ class _PeopleSheetState extends State<_PeopleSheet> {
       if (p == null) return false;
       return q.isEmpty || p.name.toLowerCase().contains(q) || p.handle.toLowerCase().contains(q);
     }).toList();
+    // Yükseklik listeye göre: az kişi varsa kısa, çok kişi varsa en fazla %85 (aratınca zıplamasın diye filtresiz sayı)
+    final sh = MediaQuery.sizeOf(context).height;
+    final fr = ((230 + base.length * 70) / sh).clamp(0.42, 0.85).toDouble();
     return KbSheet(
-      fraction: 0.85,
+      fraction: fr,
       child: Column(children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
@@ -829,7 +832,7 @@ class _PeopleSheetState extends State<_PeopleSheet> {
                               return InkWell(
                                 onTap: () => widget.onOpen(u),
                                 child: Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  padding: const EdgeInsets.fromLTRB(20, 12, 16, 10), // çerçeveli avatarın tacı üstteki satıra binmesin
                                   child: Row(children: [
                                     Avatar(profile: p, size: 48),
                                     const SizedBox(width: 12),
