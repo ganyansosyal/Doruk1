@@ -16,6 +16,10 @@ class AtHistPrefetch {
   }
   static final AtHistPrefetch i = AtHistPrefetch._();
 
+  /// Liste kayarken true (predict.dart ayarlar). Kayarken ve bitişten sonra kısa süre hiçbir şey çekilmez.
+  static bool scrolling = false;
+  static DateTime scrollEnd = DateTime.fromMillisecondsSinceEpoch(0);
+
   final List<String> _q = [];
   final Map<String, DateTime> _fail = {};
   DateTime _touch = DateTime.fromMillisecondsSinceEpoch(0);
@@ -38,7 +42,8 @@ class AtHistPrefetch {
       for (final h in r.atlar) {
         final id = h.atId;
         if (h.kosmaz || id.isEmpty) continue;
-        if (!atGalopHazir(id) && !galopIds.contains(id)) galopIds.add(id);
+        // Galop sadece seçili koşu için hemen istenir (diğer koşular koşu açılınca gelir)
+        if (r.no == firstRace && !atGalopHazir(id) && !galopIds.contains(id)) galopIds.add(id);
         if (atHistHazir(id) || !seen.add(id)) continue;
         final f = _fail[id];
         if (f != null && now.difference(f) < const Duration(minutes: 10)) continue;
@@ -60,7 +65,7 @@ class AtHistPrefetch {
     if (_run) return;
     _run = true;
     try {
-      await Future.wait([_worker(), _worker(), _worker()]); // 3 at aynı anda
+      await _worker(); // tek tek: telefonu yormasın
     } finally {
       _run = false;
     }
@@ -73,8 +78,11 @@ class AtHistPrefetch {
         await Future<void>.delayed(const Duration(seconds: 3));
         continue;
       }
-      if (DateTime.now().difference(_touch) < const Duration(milliseconds: 600)) {
-        await Future<void>.delayed(const Duration(milliseconds: 600));
+      final now = DateTime.now();
+      if (scrolling ||
+          now.difference(_touch) < const Duration(milliseconds: 800) ||
+          now.difference(scrollEnd) < const Duration(milliseconds: 800)) {
+        await Future<void>.delayed(const Duration(milliseconds: 400));
         continue;
       }
       if (_q.isEmpty) break;
@@ -85,7 +93,7 @@ class AtHistPrefetch {
       } catch (_) {
         _fail[id] = DateTime.now();
       }
-      await Future<void>.delayed(const Duration(milliseconds: 150));
+      await Future<void>.delayed(const Duration(milliseconds: 300));
     }
   }
 }
