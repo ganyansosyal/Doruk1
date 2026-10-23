@@ -54,10 +54,17 @@ class _ShellState extends State<Shell> {
     super.initState();
     final u = profileNotifier.value?.uid ?? '';
     if (u.isNotEmpty) Settler.start(u);
+    feedTarget.addListener(_toFeed);
+  }
+
+  // Bildirimden bir kupona gidilirken akış sekmesine geç
+  void _toFeed() {
+    if (feedTarget.value != null && mounted && _tab != 0) setState(() => _tab = 0);
   }
 
   @override
   void dispose() {
+    feedTarget.removeListener(_toFeed);
     Settler.stop();
     super.dispose();
   }
