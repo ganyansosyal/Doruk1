@@ -139,7 +139,7 @@ class _LeadersPageState extends State<LeadersPage> {
             child: Text(x.s.pts > 0 ? medal : '–', textAlign: TextAlign.center, style: jakarta(i < 3 ? 19 : 15, FontWeight.w800, c.mu)),
           ),
           const SizedBox(width: 4),
-          Avatar(profile: u, size: 46),
+          Avatar(profile: u, size: 52),
           const SizedBox(width: 10),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

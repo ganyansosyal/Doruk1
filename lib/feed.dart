@@ -784,8 +784,8 @@ class PostCard extends StatelessWidget {
                   }
                 }
                 return Row(children: [
-                  GestureDetector(onTap: goProfile, child: Avatar(profile: pr, size: 38)),
-                  const SizedBox(width: 8),
+                  Padding(padding: const EdgeInsets.fromLTRB(4, 10, 0, 4), child: GestureDetector(onTap: goProfile, child: Avatar(profile: pr, size: 66))), // çerçeve/taç dışarı taşar: üst ve sol boşluk
+                  const SizedBox(width: 12),
                   Expanded(
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
