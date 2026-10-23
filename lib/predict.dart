@@ -501,7 +501,18 @@ Widget build(BuildContext context) {
 
   return Column(children: [
     Expanded(
-      child: ListView(padding: const EdgeInsets.fromLTRB(12, 8, 12, 12), children: [
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (n) {
+          if (n.depth != 0) return false;
+          if (n is ScrollStartNotification) {
+            AtHistPrefetch.scrolling = true;
+          } else if (n is ScrollEndNotification) {
+            AtHistPrefetch.scrolling = false;
+            AtHistPrefetch.scrollEnd = DateTime.now();
+          }
+          return false;
+        },
+        child: ListView(padding: const EdgeInsets.fromLTRB(12, 8, 12, 12), children: [
         _dateBar(c),
         const SizedBox(height: 8),
         _typeBox(c),
@@ -573,6 +584,7 @@ Widget build(BuildContext context) {
         const SizedBox(height: 8),
         if (race != null) for (final h in race.atlar) RepaintBoundary(child: _horseCard(c, h)),
       ]),
+      ),
     ),
     _couponBar(c),
   ]);
