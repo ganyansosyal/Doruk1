@@ -157,11 +157,11 @@ class _LiveSheetState extends State<_LiveSheet> {
 
   void _full() => _c.enterFullScreen();
 
-  Widget _btn(Widget child, VoidCallback f, {EdgeInsets pad = const EdgeInsets.symmetric(horizontal: 18, vertical: 14)}) => GestureDetector(
+  Widget _btn(Widget child, VoidCallback f, {EdgeInsets pad = const EdgeInsets.symmetric(horizontal: 14, vertical: 10)}) => GestureDetector(
         onTap: f,
         child: Container(
           padding: pad,
-          decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFF2A3345))),
+          decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFF2A3345))),
           child: child,
         ),
       );
@@ -173,47 +173,51 @@ class _LiveSheetState extends State<_LiveSheet> {
       child: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
             child: Row(children: [
               ValueListenableBuilder<_Lv>(
                 valueListenable: _st,
                 builder: (_, v, __) {
                   final lagging = v.lag > 20;
                   return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(color: lagging ? const Color(0xFFD97706) : _red, borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(color: lagging ? const Color(0xFFD97706) : _red, borderRadius: BorderRadius.circular(9)),
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle)),
-                      const SizedBox(width: 7),
-                      Text(lagging ? 'GERİDE ${_fmt(v.lag)}' : 'CANLI', style: jakarta(14, FontWeight.w800, Colors.white)),
+                      Container(width: 7, height: 7, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle)),
+                      const SizedBox(width: 6),
+                      Text(lagging ? 'GERİDE ${_fmt(v.lag)}' : 'CANLI', style: jakarta(12.5, FontWeight.w800, Colors.white)),
                     ]),
                   );
                 },
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Canlı yayın', style: jakarta(17, FontWeight.w800, Colors.white)),
-                  Text('TJK yarış yayını', style: jakarta(12.5, FontWeight.w600, Colors.white54)),
+                  Text('Canlı yayın', style: jakarta(15, FontWeight.w800, Colors.white)),
+                  Text('TJK yarış yayını', style: jakarta(11.5, FontWeight.w600, Colors.white54)),
                 ]),
               ),
               GestureDetector(
                 onTap: () => Navigator.pop(context),
                 child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: const BoxDecoration(color: _ac, shape: BoxShape.circle),
-                  child: const Icon(Icons.close, color: Colors.white, size: 20),
+                  width: 32,
+                  height: 32,
+                  decoration: const BoxDecoration(color: Color(0xFF232A38), shape: BoxShape.circle),
+                  child: const Icon(Icons.close, color: Colors.white70, size: 17),
                 ),
               ),
             ]),
           ),
-          Center(
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Center(
             child: ConstrainedBox(
-              constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * (MediaQuery.orientationOf(context) == Orientation.landscape ? 0.5 : 0.3)),
+              constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * (MediaQuery.orientationOf(context) == Orientation.landscape ? 0.5 : 0.27)),
               child: AspectRatio(
                 aspectRatio: 16 / 9,
-                child: YoutubePlayer(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: YoutubePlayer(
             controller: _c,
             aspectRatio: 16 / 9,
             autoFullScreen: false,
@@ -230,17 +234,19 @@ class _LiveSheetState extends State<_LiveSheet> {
               onClose: () => _c.exitFullScreen(),
             ),
           ),
+                ),
               ),
             ),
           ),
+          ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
             child: Row(children: [
               _btn(
                 Row(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.replay, color: Colors.white, size: 22),
-                  const SizedBox(width: 8),
-                  Text('30 sn', style: jakarta(15, FontWeight.w800, Colors.white)),
+                  const Icon(Icons.replay, color: Colors.white, size: 18),
+                  const SizedBox(width: 6),
+                  Text('30 sn', style: jakarta(13, FontWeight.w800, Colors.white)),
                 ]),
                 () => _seek(-30),
               ),
@@ -253,12 +259,12 @@ class _LiveSheetState extends State<_LiveSheet> {
                     return GestureDetector(
                       onTap: _edge,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(16), border: Border.all(color: behind ? _red : const Color(0xFF2A3345))),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(12), border: Border.all(color: behind ? _red : const Color(0xFF2A3345))),
                         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                          Container(width: 16, height: 16, decoration: BoxDecoration(color: behind ? _red : _ac, shape: BoxShape.circle, border: Border.all(color: Colors.white24, width: 3))),
-                          const SizedBox(width: 10),
-                          Text(behind ? 'Canlıya dön' : 'Canlıdasın', style: jakarta(16, FontWeight.w700, Colors.white)),
+                          Container(width: 13, height: 13, decoration: BoxDecoration(color: behind ? _red : _ac, shape: BoxShape.circle, border: Border.all(color: Colors.white24, width: 2.5))),
+                          const SizedBox(width: 8),
+                          Text(behind ? 'Canlıya dön' : 'Canlıdasın', style: jakarta(14, FontWeight.w700, Colors.white)),
                         ]),
                       ),
                     );
@@ -266,7 +272,7 @@ class _LiveSheetState extends State<_LiveSheet> {
                 ),
               ),
               const SizedBox(width: 10),
-              _btn(const Icon(Icons.fullscreen, color: Colors.white, size: 24), _full, pad: const EdgeInsets.all(14)),
+              _btn(const Icon(Icons.fullscreen, color: Colors.white, size: 22), _full, pad: const EdgeInsets.all(10)),
             ]),
           ),
         ]),
@@ -321,7 +327,7 @@ class _OverlayState extends State<_Overlay> {
           _arm();
         },
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(10)),
           child: child,
         ),
@@ -348,10 +354,10 @@ class _OverlayState extends State<_Overlay> {
                     _arm();
                   },
                   child: Container(
-                    width: 64,
-                    height: 64,
+                    width: 52,
+                    height: 52,
                     decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
-                    child: Icon(v.playing ? Icons.pause_rounded : Icons.play_arrow_rounded, color: Colors.white, size: 40),
+                    child: Icon(v.playing ? Icons.pause_rounded : Icons.play_arrow_rounded, color: Colors.white, size: 32),
                   ),
                 ),
               ),

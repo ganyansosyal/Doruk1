@@ -7,7 +7,7 @@ class FrameDef {
   final String id, name, desc;
   final double price;
   const FrameDef(this.id, this.name, this.price, this.desc);
-  String get asset => 'assets/frames/$id.png';
+  String get asset => 'assets/$id.png';
 }
 
 const List<FrameDef> kFrames = [

@@ -95,6 +95,7 @@ class _FilmSheetState extends State<_FilmSheet> {
   void initState() {
     super.initState();
     _rows = widget.rows;
+    _v.addListener(_tick);
     if (widget.loader != null && _rows.isEmpty) _load();
     _v.initialize().then((_) {
       if (!mounted) return;
@@ -105,8 +106,13 @@ class _FilmSheetState extends State<_FilmSheet> {
     });
   }
 
+  void _tick() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    _v.removeListener(_tick);
     _v.dispose();
     super.dispose();
   }
@@ -126,130 +132,173 @@ class _FilmSheetState extends State<_FilmSheet> {
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => _FullVideo(controller: _v)));
   }
 
+  static String _fmt(Duration d) {
+    final m = d.inMinutes, s = d.inSeconds % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final ratio = _v.value.isInitialized ? _v.value.aspectRatio : 16 / 9;
+    final land = MediaQuery.of(context).orientation == Orientation.landscape;
+    final ok = _v.value.isInitialized;
     return SafeArea(
       top: false,
       child: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          // Başlık
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
             child: Row(children: [
               Container(
-                width: 36,
-                height: 36,
+                width: 32,
+                height: 32,
                 alignment: Alignment.center,
-                decoration: BoxDecoration(color: _ac, borderRadius: BorderRadius.circular(10)),
-                child: Text(widget.badge ?? '${widget.race}', style: jakarta(17, FontWeight.w800, Colors.white)),
+                decoration: BoxDecoration(color: _ac, borderRadius: BorderRadius.circular(9)),
+                child: Text(widget.badge ?? '${widget.race}', style: jakarta(15, FontWeight.w800, Colors.white)),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(widget.title ?? '${widget.city} · ${widget.race}. Koşu', style: jakarta(17, FontWeight.w800, Colors.white)),
-                  Text(widget.subtitle ?? 'Koşu filmi · ${widget.dateLabel}', style: jakarta(12.5, FontWeight.w600, Colors.white54)),
+                  Text(widget.title ?? '${widget.city} · ${widget.race}. Koşu', maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(15, FontWeight.w800, Colors.white)),
+                  Text(widget.subtitle ?? 'Koşu filmi · ${widget.dateLabel}', maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(11.5, FontWeight.w600, Colors.white54)),
                 ]),
               ),
               GestureDetector(
                 onTap: () => Navigator.pop(context),
                 child: Container(
-                  width: 40,
-                  height: 40,
+                  width: 32,
+                  height: 32,
                   decoration: const BoxDecoration(color: Color(0xFF232A38), shape: BoxShape.circle),
-                  child: const Icon(Icons.close, color: Colors.white, size: 20),
+                  child: const Icon(Icons.close, color: Colors.white70, size: 17),
                 ),
               ),
             ]),
           ),
-          Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * (MediaQuery.of(context).orientation == Orientation.landscape ? 0.5 : 0.3)),
-              child: AspectRatio(
-                aspectRatio: ratio,
-                child: Container(
-                  color: Colors.black,
-                  child: _err
-                      ? Center(child: Text('Video yüklenemedi.', style: jakarta(14, FontWeight.w600, Colors.white70)))
-                      : !_v.value.isInitialized
-                          ? const Center(child: CircularProgressIndicator(color: _ac))
-                          : GestureDetector(
-                              onTap: () => setState(() => _v.value.isPlaying ? _v.pause() : _v.play()),
-                              child: Stack(alignment: Alignment.center, children: [
-                                VideoPlayer(_v),
-                                if (!_v.value.isPlaying) const Icon(Icons.play_circle_fill, color: Colors.white70, size: 56),
-                              ]),
-                            ),
+          // Video: yuvarlak köşeli, kenarlardan boşluklu, kontroller videonun üstünde
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * (land ? 0.5 : 0.27)),
+                child: AspectRatio(
+                  aspectRatio: ratio,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      color: Colors.black,
+                      child: _err
+                          ? Center(child: Text('Video yüklenemedi.', style: jakarta(13, FontWeight.w600, Colors.white70)))
+                          : !ok
+                              ? const Center(child: SizedBox(width: 26, height: 26, child: CircularProgressIndicator(color: _ac, strokeWidth: 2.5)))
+                              : GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: () => setState(() => _v.value.isPlaying ? _v.pause() : _v.play()),
+                                  child: Stack(fit: StackFit.expand, children: [
+                                    VideoPlayer(_v),
+                                    if (!_v.value.isPlaying)
+                                      Center(
+                                        child: Container(
+                                          width: 50,
+                                          height: 50,
+                                          decoration: const BoxDecoration(color: Color(0x80000000), shape: BoxShape.circle),
+                                          child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 30),
+                                        ),
+                                      ),
+                                    Positioned(
+                                      left: 0,
+                                      right: 0,
+                                      bottom: 0,
+                                      child: Container(
+                                        padding: const EdgeInsets.fromLTRB(12, 14, 4, 0),
+                                        decoration: const BoxDecoration(
+                                          gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0x00000000), Color(0xB3000000)]),
+                                        ),
+                                        child: Row(children: [
+                                          Text('${_fmt(_v.value.position)} / ${_fmt(_v.value.duration)}', style: jakarta(11, FontWeight.w700, Colors.white70)),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: VideoProgressIndicator(
+                                              _v,
+                                              allowScrubbing: true,
+                                              padding: const EdgeInsets.symmetric(vertical: 12),
+                                              colors: const VideoProgressColors(playedColor: _ac, bufferedColor: Color(0x44FFFFFF), backgroundColor: Color(0x26FFFFFF)),
+                                            ),
+                                          ),
+                                          GestureDetector(
+                                            onTap: _full,
+                                            child: const Padding(padding: EdgeInsets.all(8), child: Icon(Icons.fullscreen_rounded, color: Colors.white, size: 22)),
+                                          ),
+                                        ]),
+                                      ),
+                                    ),
+                                  ]),
+                                ),
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
-          if (_v.value.isInitialized) VideoProgressIndicator(_v, allowScrubbing: true, colors: const VideoProgressColors(playedColor: _ac)),
-          if (widget.meName != null) _me(),
-          if (_ld)
-            Padding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 8), child: Text('Koşu sonucu yükleniyor…', style: jakarta(14, FontWeight.w700, Colors.white60))),
-          if (_fail)
-            GestureDetector(
-              onTap: _load,
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(14)),
-                child: Text('Koşu sonucu alınamadı · Tekrar dene', style: jakarta(13.5, FontWeight.w800, Colors.white70)),
-              ),
-            ),
-          if (_rows.isNotEmpty) ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text('Koşu sonucu', style: jakarta(14, FontWeight.w700, Colors.white60)),
-            ),
-            for (var i = 0; i < _rows.length && i < 4; i++) _row(i, _rows[i]),
-          ],
+          // Kontroller: küçük, tek satır
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
             child: Row(children: [
-              _btn('↺ 10', () => _seek(-10)),
+              _ib(Icons.replay_10_rounded, () => _seek(-10)),
               const SizedBox(width: 8),
-              _btn('10 ↻', () => _seek(10)),
+              _ib(Icons.forward_10_rounded, () => _seek(10)),
               const Spacer(),
               Container(
                 padding: const EdgeInsets.all(3),
-                decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(14)),
+                decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(12)),
                 child: Row(children: [
                   for (final sp in const [0.5, 1.0, 2.0])
                     GestureDetector(
                       onTap: () => _setSpeed(sp),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                        decoration: BoxDecoration(color: _speed == sp ? _ac : Colors.transparent, borderRadius: BorderRadius.circular(11)),
-                        child: Text('${sp == 1.0 ? '1' : sp == 2.0 ? '2' : '0.5'}x',
-                            style: jakarta(14, FontWeight.w800, _speed == sp ? Colors.white : Colors.white70)),
+                        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+                        decoration: BoxDecoration(color: _speed == sp ? _ac : Colors.transparent, borderRadius: BorderRadius.circular(9)),
+                        child: Text('${sp == 1.0 ? '1' : sp == 2.0 ? '2' : '0.5'}x', style: jakarta(12.5, FontWeight.w800, _speed == sp ? Colors.white : Colors.white60)),
                       ),
                     ),
                 ]),
               ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: _full,
-                child: Container(
-                  padding: const EdgeInsets.all(11),
-                  decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(14)),
-                  child: const Icon(Icons.fullscreen, color: Colors.white, size: 22),
-                ),
-              ),
             ]),
           ),
+          if (widget.meName != null) _me(),
+          if (_ld)
+            Padding(padding: const EdgeInsets.fromLTRB(16, 14, 16, 6), child: Text('Koşu sonucu yükleniyor…', style: jakarta(13, FontWeight.w700, Colors.white60))),
+          if (_fail)
+            GestureDetector(
+              onTap: _load,
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(12)),
+                child: Text('Koşu sonucu alınamadı · Tekrar dene', style: jakarta(13, FontWeight.w800, Colors.white70)),
+              ),
+            ),
+          if (_rows.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+              child: Text('Koşu sonucu', style: jakarta(12.5, FontWeight.w700, Colors.white54)),
+            ),
+            for (var i = 0; i < _rows.length && i < 4; i++) _row(i, _rows[i]),
+          ],
+          const SizedBox(height: 14),
         ]),
       ),
     );
   }
 
-  Widget _btn(String t, VoidCallback f) => GestureDetector(
+  Widget _ib(IconData ic, VoidCallback f) => GestureDetector(
         onTap: f,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(14)),
-          child: Text(t, style: jakarta(15, FontWeight.w800, Colors.white)),
+          width: 38,
+          height: 34,
+          decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(12)),
+          child: Icon(ic, color: Colors.white, size: 20),
         ),
       );
 
@@ -259,15 +308,15 @@ class _FilmSheetState extends State<_FilmSheet> {
       if (_nk(r.name) == _nk(widget.meName!)) no = r.no;
     }
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(color: const Color(0xFF241A45), borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFF5B3FB8))),
+      margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(color: const Color(0xFF241A45), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFF5B3FB8))),
       child: Row(children: [
-        if (no != null) ...[NoBadge(no, size: 36), const SizedBox(width: 10)],
+        if (no != null) ...[NoBadge(no, size: 30), const SizedBox(width: 10)],
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(widget.meName!, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(15, FontWeight.w800, Colors.white)),
-            if ((widget.meSub ?? '').isNotEmpty) Text(widget.meSub!, style: jakarta(12.5, FontWeight.w700, const Color(0xFFB9A7F5))),
+            Text(widget.meName!, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(14, FontWeight.w800, Colors.white)),
+            if ((widget.meSub ?? '').isNotEmpty) Text(widget.meSub!, style: jakarta(11.5, FontWeight.w700, const Color(0xFFB9A7F5))),
           ]),
         ),
       ]),
@@ -278,31 +327,31 @@ class _FilmSheetState extends State<_FilmSheet> {
     const rk = [Color(0xFFF5C518), Color(0xFFC9D1DC), Color(0xFFD08B4B), Color(0xFF5B8DEF)];
     const lb = ['Kazandı', '2. oldu', '3. oldu', '4. oldu'];
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
         color: i == 0 ? const Color(0xFF241F10) : _card,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: i == 0 ? Border.all(color: const Color(0xFF6B5A1E)) : (widget.meName != null && _nk(r.name) == _nk(widget.meName!) ? Border.all(color: const Color(0xFF5B3FB8)) : null),
       ),
       child: Row(children: [
         Container(
-          width: 34,
-          height: 34,
+          width: 26,
+          height: 26,
           alignment: Alignment.center,
           decoration: BoxDecoration(color: rk[i], shape: BoxShape.circle),
-          child: Text('${i + 1}', style: jakarta(15, FontWeight.w800, const Color(0xFF111111))),
+          child: Text('${i + 1}', style: jakarta(13, FontWeight.w800, const Color(0xFF111111))),
         ),
-        const SizedBox(width: 10),
-        NoBadge(r.no, size: 36),
+        const SizedBox(width: 8),
+        NoBadge(r.no, size: 28),
         const SizedBox(width: 10),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(r.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(15, FontWeight.w800, Colors.white)),
-            Text(lb[i], style: jakarta(12.5, FontWeight.w700, rk[i])),
+            Text(r.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: jakarta(13.5, FontWeight.w800, Colors.white)),
+            Text(lb[i], style: jakarta(11.5, FontWeight.w700, rk[i])),
           ]),
         ),
-        if (r.gny != null) Text('Ganyan ${r.gny}', style: jakarta(14.5, FontWeight.w800, const Color(0xFFFFB627))),
+        if (r.gny != null) Text('Ganyan ${r.gny}', style: jakarta(12.5, FontWeight.w800, const Color(0xFFFFB627))),
       ]),
     );
   }
