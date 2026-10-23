@@ -136,6 +136,13 @@ Future<void> toggleFollow(String t, bool f) => _toggleFollow(t, f);
 /// Alt menüde "Akış"a (zaten Akış'tayken) tekrar basılınca akışı en üste kaydırır
 final ValueNotifier<int> feedScrollTop = ValueNotifier<int>(0);
 
+// Bildirimden kupona git: bildirim sayfası bunu ayarlar, Shell akış sekmesine geçer, FeedPage kuponu bulup vurgular
+class FeedTarget {
+  final String id, type; // id = paylaşım (post) doküman id'si
+  FeedTarget(this.id, this.type);
+}
+final ValueNotifier<FeedTarget?> feedTarget = ValueNotifier<FeedTarget?>(null);
+
 class FeedPage extends StatefulWidget {
   final void Function(String city, int race)? onOpenRace;
   final VoidCallback? onOpenLeaders;
@@ -173,6 +180,67 @@ class _FeedPageState extends State<FeedPage> {
 
   String _filter = 'all';
 
+  // Bildirimden gelen kupon: bul, kaydır, vurgula
+  List<Post> _lastAll = const [];
+  FeedTarget? _handled;
+  String? _flashId;
+  final GlobalKey _tgtKey = GlobalKey();
+
+  String _filterFor(Post? p, String type) {
+    if (p != null && p.coupon != null) {
+      if (_isLost(p)) return 'lost';
+      if (_isWon(p)) return 'winners';
+      return 'all';
+    }
+    if (type == 'lose') return 'lost';
+    if (type == 'win') return 'winners';
+    return 'all';
+  }
+
+  void _onTarget() {
+    final t = feedTarget.value;
+    if (t == null || identical(t, _handled) || !mounted) return;
+    _handled = t;
+    Post? find() {
+      for (final p in _lastAll) { if (p.id == t.id) return p; }
+      return null;
+    }
+    setState(() {
+      _filter = _filterFor(find(), t.type);
+      _flashId = null;
+    });
+    () async {
+      if (_scroll.hasClients) _scroll.jumpTo(0);
+      for (var tries = 0; tries < 60; tries++) {
+        await WidgetsBinding.instance.endOfFrame;
+        if (!mounted || !identical(_handled, t)) return;
+        final p = find();
+        final want = _filterFor(p, t.type);
+        if (p != null && want != _filter) {
+          setState(() => _filter = want); // durumu sonradan değişti: doğru sekmeye geç
+          if (_scroll.hasClients) _scroll.jumpTo(0);
+          continue;
+        }
+        final ctx = _tgtKey.currentContext;
+        if (p != null && ctx != null) {
+          await Scrollable.ensureVisible(ctx, alignment: 0.15, duration: const Duration(milliseconds: 450), curve: Curves.easeOutCubic);
+          if (!mounted) return;
+          setState(() => _flashId = t.id);
+          Future.delayed(const Duration(milliseconds: 2800), () { if (mounted && _flashId == t.id) setState(() => _flashId = null); });
+          return;
+        }
+        if (_scroll.hasClients) {
+          final pos = _scroll.position;
+          if (pos.pixels >= pos.maxScrollExtent - 1 && tries > 3) break;
+          _scroll.jumpTo((pos.pixels + 700).clamp(0.0, pos.maxScrollExtent).toDouble());
+        }
+        await Future.delayed(const Duration(milliseconds: 60));
+      }
+      if (!mounted || !identical(_handled, t)) return;
+      _toast(context, t.type == 'lose' ? 'Kaybeden kupon bulunamadı.' : 'Gönderi bugünün akışında yok ya da silinmiş.');
+    }();
+  }
+
   final _subs = <StreamSubscription>[];
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _users = [];
   Map<String, double> _bonus = {};
@@ -193,6 +261,7 @@ class _FeedPageState extends State<FeedPage> {
   void initState() {
     super.initState();
     feedScrollTop.addListener(_toTop);
+    feedTarget.addListener(_onTarget);
     liveResTick.addListener(_resTick);
     TjkStore.i.ensureLoaded();
     // Eski (önbellek) paylaşımlar hiç gösterilmesin: önce sunucudan taze veriyi al, sonra akışı aç.
@@ -245,6 +314,7 @@ class _FeedPageState extends State<FeedPage> {
   void dispose() {
     liveResTick.removeListener(_resTick);
     feedScrollTop.removeListener(_toTop);
+    feedTarget.removeListener(_onTarget);
     _scroll.dispose();
     _bumpT?.cancel();
     for (final s in _subs) { s.cancel(); }
@@ -298,6 +368,7 @@ class _FeedPageState extends State<FeedPage> {
             if (snap.hasError) return Center(child: Text(AuthService.errorText(snap.error!), style: jakarta(14, FontWeight.w600, c.mu)));
             if (!snap.hasData) return Center(child: CircularProgressIndicator(color: c.ac));
             final all = snap.data!.docs.map((d) => Post(d.id, d.data())).toList();
+            _lastAll = all;
             _syncRank(snap.data!, all);
             final visible = all.where((p) => !p.hidden).toList();
             final today = isoToday();
@@ -365,7 +436,15 @@ class _FeedPageState extends State<FeedPage> {
                   final p = list[i - head.length];
                   return RepaintBoundary( // Her kartı kendi katmanına alır
                     key: ValueKey(p.id),
-                    child: PostCard(key: ValueKey(p.id), post: p, following: following.contains(p.uid), tracked: tracked.contains(p.id), isMod: _mods.contains(p.uid)),
+                    child: AnimatedContainer(
+                      key: (_handled != null && p.id == _handled!.id) ? _tgtKey : null,
+                      duration: const Duration(milliseconds: 300),
+                      foregroundDecoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: p.id == _flashId ? c.ac : Colors.transparent, width: 3),
+                      ),
+                      child: PostCard(key: ValueKey(p.id), post: p, following: following.contains(p.uid), tracked: tracked.contains(p.id), isMod: _mods.contains(p.uid)),
+                    ),
                   );
                 },
               ),
