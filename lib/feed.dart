@@ -441,36 +441,33 @@ class _FeedPageState extends State<FeedPage> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(child: Text('Öne Çıkan Tahminciler', style: jakarta(16, FontWeight.w800, c.tx))),
-          Text('Puana göre', style: jakarta(11, FontWeight.w600, c.mu)),
+          _rank.length > 5
+              ? GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: widget.onOpenLeaders,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Text('Tümü', style: jakarta(12, FontWeight.w800, c.ac)),
+                      Icon(Icons.chevron_right, size: 16, color: c.ac),
+                    ]),
+                  ),
+                )
+              : Text('Puana göre', style: jakarta(11, FontWeight.w600, c.mu)),
         ]),
         const SizedBox(height: 6),
         if (top.isEmpty)
           Text('Henüz puan alan yok. Kuponu tutan ilk kişi burada görünecek.', style: jakarta(11.5, FontWeight.w500, c.mu))
         else
           SizedBox(
-            height: 130,
+            height: 142,
             child: ListView(scrollDirection: Axis.horizontal, clipBehavior: Clip.none, children: [
               for (var i = 0; i < top.length; i++) _person(c, i, top[i], following),
-              if (_rank.length > 5) _allItem(c),
             ]),
           ),
       ]),
     );
   }
-
-  Widget _allItem(AppColors c) => GestureDetector(
-        onTap: widget.onOpenLeaders,
-        child: SizedBox(
-          width: 70,
-          child: Column(children: [
-            const SizedBox(height: 6),
-            Container(width: 54, height: 54, alignment: Alignment.center, decoration: BoxDecoration(shape: BoxShape.circle, color: c.sf, border: Border.all(color: c.ln, width: 2)), child: Icon(Icons.chevron_right, size: 28, color: c.ac)),
-            const SizedBox(height: 6),
-            Text('Tümü', style: jakarta(12, FontWeight.w800, c.tx)),
-            Text('Sıralama', style: jakarta(10, FontWeight.w600, c.mu)),
-          ]),
-        ),
-      );
 
   Widget _person(AppColors c, int i, _RankRow x, Set<String> following) {
     final isMe = x.uid == _myUid;
@@ -481,17 +478,17 @@ class _FeedPageState extends State<FeedPage> {
     return GestureDetector(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileRoute(uid: x.uid))),
       child: SizedBox(
-        width: 70,
+        width: 72,
         child: Column(children: [
           SizedBox(
-            width: 60,
-            height: 60,
+            width: 70,
+            height: 70,
             child: Stack(clipBehavior: Clip.none, children: [
               Center(
                 child: Container(
                   padding: const EdgeInsets.all(2),
                   decoration: BoxDecoration(shape: BoxShape.circle, gradient: ring == null ? null : LinearGradient(colors: ring, begin: Alignment.topLeft, end: Alignment.bottomRight), border: ring == null ? Border.all(color: c.ln, width: 2) : null),
-                  child: Avatar(profile: x.p, size: 48),
+                  child: Avatar(profile: x.p, size: 58),
                 ),
               ),
               Positioned(left: -2, top: -2, child: Container(width: 20, height: 20, alignment: Alignment.center, decoration: BoxDecoration(color: rkCol, shape: BoxShape.circle, border: Border.all(color: c.sf, width: 2)), child: Text('${i + 1}', style: jakarta(10, FontWeight.w800, Colors.white)))),
